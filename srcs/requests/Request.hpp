@@ -22,7 +22,7 @@ char*			CONTENT_TYPE;	//media type of message body - from header {NULL}
 char*			QUERY_STRING;	//information for the CGI script to affect the return value - URL after '?' {NULL} e.g. URL=example.com/cgi-bin/hello.cgi/user/admin?query=date QUERY_STRING=query=date
 char*			REMOTE_ADDR;	//network address of client sending the request (ipv4 or ipv6) {NULL}
 char*			REMOTE_HOST;	//domain name of the client sending the request, or {NULL}
-}	reqVars;
+}	reqVariables;
 
 
 class	Request
