@@ -34,7 +34,7 @@ public:
 
 protected:
 	std::string	_body;
-	reqVariables _vars;
+	reqVariables _variables;
 	Location*	_location;
 	int			_clientFD;
 
