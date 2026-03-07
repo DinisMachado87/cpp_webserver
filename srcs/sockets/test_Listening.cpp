@@ -1,5 +1,6 @@
 // test_connection.cpp
 #include <gtest/gtest.h>
+#include "ASocket.hpp"
 #include "Listening.hpp"
 #include "Server.hpp"
 #include <unistd.h>
@@ -10,19 +11,19 @@
 class ListeningTest : public ::testing::Test {
 protected:
 	Server server;
-	std::vector<Listening*> connections;
+	std::vector<ASocket*> sockets;
 
-	void SetUp() { connections.clear(); }
+	void SetUp() { sockets.clear(); }
 
 	void TearDown() {
-		for (std::vector<Listening*>::iterator it = connections.begin(); 
-		it != connections.end(); ++it) {
+		for (std::vector<ASocket*>::iterator it = sockets.begin(); 
+		it != sockets.end(); ++it) {
 			if (*it) {
 				close((*it)->getFd());
 				delete *it;
 			}
 		}
-		connections.clear();
+		sockets.clear();
 	}
 
 	Listen createListenConfig(int port, in_addr_t host = INADDR_ANY) {
@@ -34,9 +35,7 @@ protected:
 
 	Listening* createAndTrackListening(Server& srv, const Listen& config) {
 		Listening* lstng = Listening::create(srv, config);
-		if (lstng) {
-			connections.push_back(lstng);
-		}
+		if (lstng) { sockets.push_back(lstng); }
 		return lstng;
 	}
 
@@ -69,7 +68,7 @@ TEST_F(ListeningTest, SO_REUSEADDR_AllowsQuickRestart) {
 
 	close(lstng1->getFd());
 	delete lstng1;
-	connections.pop_back();
+	sockets.pop_back();
 
 	createAndValidateListening(server, 8889);
 }

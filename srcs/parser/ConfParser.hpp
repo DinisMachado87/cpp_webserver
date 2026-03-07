@@ -4,8 +4,6 @@
 #include "Expect.hpp"
 #include "Server.hpp"
 #include "Token.hpp"
-#include "Span.hpp"
-#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -19,11 +17,11 @@ private:
 	Server*					_newServer;
 	Location				_newLocation;
 
-	const char*		_curStrConfig;
-	unsigned int	_vecCursor;
-	Token			_token;
-	unsigned char	_curType;
-	Expect			_expect;
+	const char*	_curStrConfig;
+	uint		_vecCursor;
+	Token		_token;
+	uchar		_curType;
+	Expect		_expect;
 
 	// Explicit disables
 	ConfParser();
@@ -31,8 +29,9 @@ private:
 	ConfParser(const ConfParser& other);
 
 	// Methods
+	bool			isMethod();
 	void			nextServer();
-	unsigned char	parseServer();
+	uchar			parseServer();
 	void			parseServerLine();
 	void			parseLocation();
 	void			parseLocationParam();
@@ -44,7 +43,7 @@ private:
 	
 public:
 	// Constructors and destructors
-	ConfParser(std::string configStr, std::vector<Server*>& servers);
+	ConfParser(std::string& configStr, std::vector<Server*>& servers);
 	~ConfParser();
 
 	// Methods

@@ -35,6 +35,24 @@ Location::Location(std::string& strBuf, std::vector<StrView>& vecBuf, Overrides*
 	_uploadEnable(false),
 	_allowedMethods(DEFAULT) {}
 
+Location& Location::operator=(const Location& other) {
+	if (this != &other) {
+		_overrides = other._overrides;
+		_serverDefaults = other._serverDefaults;
+		_cgiExtensions = other._cgiExtensions;
+		_cgiPath = other._cgiPath;
+		_path = other._path;
+		_returnPath = other._returnPath;
+		_rewrite_old = other._rewrite_old;
+		_rewrite_new = other._rewrite_new;
+		_uploadPath = other._uploadPath;
+		_returnCode = other._returnCode;
+		_uploadEnable = other._uploadEnable;
+		_allowedMethods = other._allowedMethods;
+	}
+	return *this;
+}
+
 Server::Server(): _defaults(_strBuf, _strvVecBuf) {};
 
 Server::~Server() { }
@@ -50,8 +68,8 @@ void Server::reserve(
 	_intVecBuf.reserve(sizeintVecBuf);
 }
 
-size_t	Server::getLoncationsLen() { return _locations.size(); }
-size_t	Server::getListenLen() { return _listen.size(); }
+size_t	Server::getLoncationsLen()					{ return _locations.size(); }
+size_t	Server::getListenLen()						{ return _listen.size(); }
 
 const Span<StrView>&	Overrides::getIndex() const	{ return _index; };
 const char*		Overrides::getRoot() const			{ return _root.getStart(); };
@@ -60,7 +78,7 @@ size_t			Overrides::getClientMaxBody() const	{ return _clientMaxBody; };
 
 const char*		Overrides::findErrorFile(uint errorCode) const {
 	std::map<unsigned int, StrView>::const_iterator it = _error.find(errorCode);
-	return (it != _error.end()) ? it->second.getStart() : NULL;
+	return ((it != _error.end()) ? it->second.getStart() : NULL);
 };
 
 const char*	Location::getPath() const			{ return _path.getStart(); }
@@ -82,11 +100,10 @@ const char*	Location::findCgiPath(const char* extention) const {
 	return NULL;
 }
 
-uchar	Location::isAllowedMethod(unsigned char methodToCheck) const {
+uchar	Location::isAllowedMethod(uchar methodToCheck) const {
 	return _allowedMethods & (1 << methodToCheck);
 };
 
-in_addr_t Listen::getHost() const		{ return _host; }
+in_addr_t Listen::getHost() const	{ return _host; }
 uint16_t	Listen::getPort() const	{ return _port; }
-
 

@@ -1,25 +1,25 @@
 #ifndef SPAN_H
 #define SPAN_H
 
+#include "webServ.hpp"
 #include <stdexcept>
 #include <vector>
 
 template<typename T>
 class Span {
 private:
-	std::vector<T>&		_vecBuf;
-	unsigned int		_offset;
-	unsigned char		_len;
-	
+	std::vector<T>*	_vecBuf;
+	uint	_offset;
+	uchar	_len;
 	
 public:
 	Span(std::vector<T>& vecBuf):
-		_vecBuf(vecBuf),
+		_vecBuf(&vecBuf),
 		_offset(0),
 		_len(0) {}
 
-	Span(std::vector<T>& vecBuf, unsigned int offset, unsigned char len):
-		_vecBuf(vecBuf),
+	Span(std::vector<T>& vecBuf, uint offset, uchar len):
+		_vecBuf(&vecBuf),
 		_offset(offset),
 		_len(len) {}
 	
@@ -39,20 +39,20 @@ public:
 		return *this;
 	}
 
-	T& operator[](unsigned int i) {
+	T& operator[](uint i) {
 		return const_cast<T&>(
 			static_cast<const Span&>(*this)[i]
 		);
 	}
 	
 	// Const version has the actual logic
-	const T& operator[](unsigned int i) const {
+	const T& operator[](uint i) const {
 		if (i >= _len)
 			throw std::out_of_range("Span index out of range");
-		return _vecBuf[_offset + i];
+		return (*_vecBuf)[_offset + i];
 	}
 	
-	unsigned char len() const { return _len; }
+	uchar len() const { return _len; }
 };
 
 #endif

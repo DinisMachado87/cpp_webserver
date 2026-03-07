@@ -1,5 +1,6 @@
 #include "Listening.hpp"
 #include "ASocket.hpp"
+#include "Connection.hpp"
 #include "Server.hpp"
 #include "webServ.hpp"
 #include <asm-generic/socket.h>
@@ -7,23 +8,29 @@
 #include <cstring>
 #include <netinet/in.h>
 #include <stdexcept>
+#include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 
-std::runtime_error	Listening::handleError() {
-	return std::runtime_error(
-		std::string("Error creating Listening Socket: ")
+using std::string;
+using std::runtime_error;
+
+runtime_error	Listening::handleError()
+{
+	return runtime_error(
+		string("Error creating Listening Socket: ")
 		+ strerror(errno));
 }
 
 // Public constructors and destructors
 Listening::Listening(int fd, const Server& server):
-	ASocket(fd, server) { }
+	ASocket(fd, server) {}
 
 Listening::~Listening() {}
 
 // Public Methods
-Listening* Listening::create(const Server& server, const Listen& listenSock) {
+Listening* Listening::create(const Server& server, const Listen& listenSock)
+{
 	struct sockaddr_in	addr = {
 		AF_INET,
 		htons(listenSock.getPort()),
@@ -50,5 +57,3 @@ Listening* Listening::create(const Server& server, const Listen& listenSock) {
 void Listening::handle(int fd) {
 	(void)fd;
 }
-
-

@@ -1,12 +1,14 @@
 #ifndef STRVIEW_HPP
 #define STRVIEW_HPP
 
+#include "webServ.hpp"
 #include <string>
+
 class StrView {
 private:
-	std::string&	_rawBuffer;
-	unsigned int	_offset;
-	unsigned int	_len;
+	std::string*	_rawBuffer;
+	uint			_offset;
+	uint			_len;
 
 public:
 	// Constructors and destructors

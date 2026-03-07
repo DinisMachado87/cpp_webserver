@@ -6,20 +6,27 @@
 #include <cctype>
 #include <climits>
 #include <cstddef>
+#include <map>
 #include <sstream>
 #include <stdlib.h>
 #include <string>
 #include <utility>
 #include <vector>
 
+using std::pair;
+using std::map;
+using std::string;
+using std::vector;
+typedef pair<map<uint, StrView>::iterator, bool> errorVecPair;
+
 // Public constructors and destructors
-ConfParser::ConfParser(std::string configStr, std::vector<Server*>& servers):
+ConfParser::ConfParser(string &configStr, vector<Server*> &servers):
 	_servers(servers),
 	_newServer(new Server()),
-	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf,&_newServer->_defaults),
+	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf, &_newServer->_defaults),
 	_curStrConfig(configStr.c_str()),
 	_vecCursor(0),
-	_token(Token::configDelimiters(), _newServer->_strBuf),
+	_token(Token::configDelimiters(), configStr),
 	_curType(0),
 	_expect(_token, _curType)
 {
@@ -28,8 +35,7 @@ ConfParser::ConfParser(std::string configStr, std::vector<Server*>& servers):
 
 ConfParser::~ConfParser() {}
 
-// Public Methods
-
+// Err Handeling
 std::runtime_error ConfParser::parsingErr(const char* expected) const {
 	std::ostringstream oss;
 	oss << "Error Parsing config: "
@@ -40,11 +46,21 @@ std::runtime_error ConfParser::parsingErr(const char* expected) const {
 	return std::runtime_error(oss.str());
 }
 
-// Public Methods
-void	ConfParser::parseMethod() {
-	const char *methods[] = {"DEFAULT", "GET", "POST", "PUT", "DELETE"};
-	const unsigned char size = 5;
+// Private Methods
+bool	ConfParser::isMethod() {
+	static const char *methods[] = {"DEFAULT", "GET", "POST", "PUT", "DELETE"};
+	static const uchar size = 5;
 
+	for (int i = 1; i < size; i++) {
+		if (true == _token.compare(methods[i])) {
+			_newLocation._allowedMethods |= (1 << i);
+			return true;
+		}
+	}
+	return false;
+}
+
+void	ConfParser::parseMethod() {
 	while (1) {
 		_token.next();
 		switch (_token.getType()) {
@@ -52,18 +68,12 @@ void	ConfParser::parseMethod() {
 				if (_newLocation._allowedMethods == Location::DEFAULT)
 					throw parsingErr("Method definition");
 				return;
-			case Token::WORD: {
-				for (int i = 1; i < size; i++) {
-					if (OK == _token.compare(methods[i])) {
-						_newLocation._allowedMethods |= (1 << i);
-						goto method_found;
-					}
-				}
-				throw parsingErr("Unknown method");
-				
-				method_found:
+
+			case Token::WORD:
+				if (!isMethod())
+					throw parsingErr("Unknown method");
 				break;
-			}
+
 			default:
 				throw parsingErr("Method definition");
 		}
@@ -72,52 +82,70 @@ void	ConfParser::parseMethod() {
 
 bool	ConfParser::parseOverrides(Overrides& overrides) {
 	if (_token.compare("root"))
-		overrides._root = _expect.path();
+		_expect.path(&overrides._root);
 	else if (_token.compare("autoindexing"))
 		overrides._autoindex = _expect.onOff();
-	else if (_token.compare("index"))
+	else if (_token.compare("index")){
 		overrides._index = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
-	else if (_token.compare("client_max_body_size"))
+		return true;
+	} else if (_token.compare("client_max_body_size"))
 		overrides._clientMaxBody = _expect.size();
-	else if (_token.compare("error_page")) {
-		unsigned int code = _expect.integer();
-		StrView path = _expect.path();
-		overrides._error.insert(std::make_pair(code, path));
-	} else return false;
+	else if (_token.compare("error_page"))
+		_expect.errorPage(overrides._error, _newServer->_strBuf);
+	else
+		return false;
+
+	_token.getNextOfType(Token::SEMICOLON, "';'");
 	return true;
 }
 
 void	ConfParser::parseLocationParam() {
-	if (_token.compare("allowed_methods"))
+	if (_token.compare("allowed_methods")) {
 		parseMethod();
+		return;
+	}
 	else if (_token.compare("return")) {
-		_newLocation._returnCode = _expect.integer();
-		_newLocation._returnPath = _expect.path();
-	} else if (_token.compare("rewrite")){
-		_newLocation._rewrite_old = _expect.path();
-		_newLocation._rewrite_new = _expect.path();
+		_newLocation._returnCode = _expect.nextInteger();
+		_expect.path(&_newLocation._returnPath);
+	}
+	else if (_token.compare("rewrite")){
+		_expect.path(&_newLocation._rewrite_old);
+		_expect.path(&_newLocation._rewrite_new);
 	}
 	else if (_token.compare("upload_enable"))
 		_newLocation._uploadEnable = _expect.onOff();
+
 	else if (_token.compare("upload_path"))
-		_newLocation._uploadPath = _expect.path();
-	else if (_token.compare("cgi_extension"))
+		_expect.path(&_newLocation._uploadPath);
+
+	else if (_token.compare("cgi_extension")) {
 		_newLocation._cgiExtensions = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
-	else if (_token.compare("cgi_path"))
+		return;
+	}
+	else if (_token.compare("cgi_path")) {
 		_newLocation._cgiPath = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
-	else if (!parseOverrides(_newLocation._overrides))
+		return;
+	}
+	else if (parseOverrides(_newLocation._overrides))
+		return;
+	else
 		throw parsingErr("Unknown directive");
+	_token.getNextOfType(Token::SEMICOLON, "';'");
 }
 
 void	ConfParser::parseLocation() {
-	_newLocation._path = _expect.path();
+	_expect.path(&_newLocation._path);
 	_token.getNextOfType(Token::OPENBLOCK, "{");
 
 	while (1) {
 		_token.next();
 		switch (_token.getType()) {
 			case Token::CLOSEBLOCK:
+				_token.consolidateBuffer(_newServer->_strBuf);
 				_newServer->_locations.push_back(_newLocation);
+				_newLocation = Location(_newServer->_strBuf,
+										_newServer->_strvVecBuf,
+										&_newServer->_defaults);
 				return;
 			case Token::WORD:
 				parseLocationParam();
@@ -130,12 +158,22 @@ void	ConfParser::parseLocation() {
 
 void	ConfParser::parseServerLine() {
 	if (_token.compare("listen")) {
-		int num1 = _expect.integer();
-		int num2 = _expect.integer();
+		int num1 = _expect.nextInteger();
+		
 		Listen listen;
-		listen._host = num1;
-		listen._port = num2;
-
+		uchar types[] = {Token::WORD, Token::SEMICOLON};
+		
+		switch (_token.getNextOfTypes(types, 2, "port or ';'")) {
+			case Token::SEMICOLON:
+				listen._host = 0;
+				listen._port = num1;
+				break;
+			case Token::WORD:
+				listen._host = num1;
+				listen._port = _expect.integer();
+				_token.getNextOfType(Token::SEMICOLON, "';'");
+				break;
+		}
 		_newServer->_listen.push_back(listen);
 	}
 	else if (!parseOverrides(_newServer->_defaults))
@@ -150,7 +188,8 @@ void	ConfParser::nextServer() {
 		if (Token::WORD == _curType) {
 			if (_token.compare("location"))
 				parseLocation();
-			else parseServerLine();
+			else
+				parseServerLine();
 		}
 		else if (Token::CLOSEBLOCK == _curType) {
 			_token.consolidateBuffer(_newServer->_strBuf);
@@ -158,7 +197,8 @@ void	ConfParser::nextServer() {
 			_newServer = new Server();
 			return;
 		}
-		else throw parsingErr("Unexpected token");
+		else
+			throw parsingErr("Unexpected token");
 	}
 }
 
@@ -166,15 +206,15 @@ void	ConfParser::createServers() {
 	while (1) {
 		switch (_token.next()) {
 			case Token::WORD:
-				if (_token.compare("server"))
+				if (_token.compare("server")) {
 					_token.getNextOfType(Token::OPENBLOCK, "{");
+					nextServer();
+				}
 				else throw parsingErr("\"server\"");
 				break;
 			case Token::ENDOFILE:
 				return;
 			default: throw parsingErr("{");
-
-			nextServer();
 		}
 	}
 }

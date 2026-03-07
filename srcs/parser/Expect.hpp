@@ -4,6 +4,8 @@
 #include "Span.hpp"
 #include "Token.hpp"
 #include <cstddef>
+#include <map>
+#include <string>
 #include <vector>
 
 class Expect {
@@ -26,13 +28,15 @@ public:
 	~Expect();
 
 	// Methods
+	int nextInteger();
+	void			errorPage(std::map<uint, StrView>& errorMap, std::string& strBuf);
 	unsigned char	word(const char *str1);
 	Span<StrView>	wordVec(std::vector<StrView>& vecBuf, unsigned int& vecCursor);
 	bool			onOff();
 	int				integer();
 	size_t			size();
 	void			paths(StrView* paths, int n);
-	StrView			path();
+	void			path(StrView* dest);
 };
 
 #endif

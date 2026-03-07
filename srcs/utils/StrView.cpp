@@ -5,13 +5,13 @@
 #include <unistd.h>
 
 // Public constructors and destructors
-StrView::StrView(std::string& buffer, const int offset, const unsigned char len) :
-	_rawBuffer(buffer),
+StrView::StrView(std::string& buffer, const int offset, const uchar len) :
+	_rawBuffer(&buffer),
 	_offset(offset),
 	_len(len) {}
 
 StrView::StrView(std::string& buffer) :
-	_rawBuffer(buffer),
+	_rawBuffer(&buffer),
 	_offset(0),
 	_len(0) {}
 
@@ -36,30 +36,30 @@ void StrView::move(std::string& toBuffer) {
 	int	offset = toBuffer.length();
 	toBuffer.append(getStart(), _len);
 	toBuffer.push_back('\0');
-	_rawBuffer = toBuffer;
+	_rawBuffer = &toBuffer;
 	_offset = offset;
 }
 
-unsigned int	StrView::getOffset() const { return _offset; };
-const char*		StrView::getStart() const { return _rawBuffer.c_str() + _offset; };
-unsigned int	StrView::getLen() const { return _len; };
-std::string		StrView::getStr() const { return std::string(getStart(), _len); }
+uint		StrView::getOffset() const	{ return _offset; };
+const char*	StrView::getStart() const	{ return _rawBuffer->c_str() + _offset; };
+uint		StrView::getLen() const		{ return _len; };
+std::string	StrView::getStr() const		{ return std::string(getStart(), _len); }
 
-void	StrView::setBuffer(std::string& newBuffer) { _rawBuffer = newBuffer; }
-void	StrView::setStart(const char* start) { _offset = start - _rawBuffer.c_str(); }
-void	StrView::setLen(unsigned int len) { _len = len; }
+void	StrView::setBuffer(std::string& newBuffer) { _rawBuffer = &newBuffer; }
+void	StrView::setStart(const char* start) { _offset = start - _rawBuffer->c_str(); }
+void	StrView::setLen(uint len) { _len = len; }
 
-void	StrView::setStartAndLen(const char* start, unsigned int len) {
-	_offset = start - _rawBuffer.c_str();
+void	StrView::setStartAndLen(const char* start, uint len) {
+	_offset = start - _rawBuffer->c_str();
 	_len = len;
 }
 
 // Public Methods
-void StrView::updateOffset(unsigned int increase) { _offset += increase; }
-void StrView::printStrV() const { write(1, getStart(), _len); }
+void	StrView::updateOffset(uint increase)	{ _offset += increase; }
+void	StrView::printStrV() const				{ write(1, getStart(), _len); }
 
-bool StrView::compare(StrView &strV) const { return compare(strV.getStart()); }
-bool StrView::compare(const char *str) const {
+bool	StrView::compare(StrView &strV) const	{ return compare(strV.getStart()); }
+bool	StrView::compare(const char *str) const	{
 	if (OK == strncmp(getStart(), str, _len)
 		&& str[_len] == '\0')
 		return true;

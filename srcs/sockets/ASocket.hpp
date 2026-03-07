@@ -14,7 +14,8 @@ private:
 	ASocket& operator=(const ASocket& other);
 
 protected:
-	int		_fd;
+	void*			_ptrToSelf;
+	int				_fd;
 	const Server&	_server;
 
 	// Constructors and destructors
@@ -25,8 +26,9 @@ public:
 	virtual ~ASocket();
 
 	// Methods
-	void setNonBlocking();
-	int getFd() const;
+	void	setNonBlocking();
+	int		getFd() const;
+	void*	getPtrToSelf() const;
 
 	virtual void handle(int events) = 0;
 };

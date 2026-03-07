@@ -15,7 +15,15 @@
 
 class ConfParserTest: public ::testing::Test {
 protected:
-	std::vector<Server*> _servers;
+	std::vector<Server*>	_servers;
+	std::string				_config;
+
+	enum MethodBits {
+		BIT_GET = 1,
+		BIT_POST = 2,
+		BIT_PUT = 3,
+		BIT_DELETE = 4
+	};
 
 	void TearDown() {
 		for (size_t i = 0; i < _servers.size(); i++)
@@ -23,32 +31,61 @@ protected:
 		_servers.clear();
 	}
 
-	void parse(const std::string& config) {
-		ConfParser parser(config, _servers);
+	void parse(std::string config) {
+		_config = config;
+		ConfParser parser(_config, _servers);
+		parser.createServers();
 	}
 
 	std::string strv(const StrView& server) {
 		return std::string(server.getStart(), server.getLen());
 	}
-};
 
+	Server* server(size_t idx = 0) {
+		EXPECT_LT(idx, _servers.size());
+		return _servers[idx];
+	}
+
+	Location& location(size_t serverIdx, size_t locIdx) {
+		EXPECT_LT(locIdx, server(serverIdx)->_locations.size());
+		return server(serverIdx)->_locations[locIdx];
+	}
+
+	void assertSingleServer() {
+		ASSERT_EQ(_servers.size(), 1);
+	}
+
+	bool hasMethod(const Location& loc, int methodBit) {
+		return (loc._allowedMethods & (1 << methodBit)) != 0;
+	}
+};
 
 TEST_F(ConfParserTest, EmptyServer) {
 	parse("server { }");
 
-	ASSERT_EQ(_servers.size(), 1);
-	EXPECT_EQ(_servers[0]->getListenLen(), 0);
-	EXPECT_EQ(_servers[0]->getLoncationsLen(), 0);
+	assertSingleServer();
+	EXPECT_EQ(server()->getListenLen(), 0);
+	EXPECT_EQ(server()->getLoncationsLen(), 0);
 }
 
 TEST_F(ConfParserTest, BasicServer) {
 	parse("server { listen 127 8080; root /var/www; }");
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->getListenLen(), 1);
-	EXPECT_EQ(_servers[0]->_listen[0]._host, 127);
-	EXPECT_EQ(_servers[0]->_listen[0]._port, 8080);
-	EXPECT_EQ(strv(_servers[0]->_defaults._root), "/var/www");
+	assertSingleServer();
+	ASSERT_EQ(server()->getListenLen(), 1);
+	EXPECT_EQ(server()->_listen[0]._host, 127);
+	EXPECT_EQ(server()->_listen[0]._port, 8080);
+	EXPECT_EQ(strv(server()->_defaults._root), "/var/www");
+}
+
+TEST_F(ConfParserTest, BasicServerNoHost) {
+	parse("server { listen 8080; root /var/www; }");
+
+	assertSingleServer();
+	ASSERT_EQ(server()->getListenLen(), 1);
+	EXPECT_EQ(server()->_listen[0]._host, 0);
+	EXPECT_EQ(server()->_listen[0]._port, 8080);
+	EXPECT_EQ(strv(server()->_defaults._root), "/var/www");
 }
 
 TEST_F(ConfParserTest, ServerWithIndexAndAutoindex) {
@@ -59,12 +96,12 @@ TEST_F(ConfParserTest, ServerWithIndexAndAutoindex) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	EXPECT_EQ(_servers[0]->_defaults._index.len(), 3);
-	EXPECT_EQ(strv(_servers[0]->_defaults._index[0]), "index.html");
-	EXPECT_EQ(strv(_servers[0]->_defaults._index[1]), "index.htm");
-	EXPECT_EQ(strv(_servers[0]->_defaults._index[2]), "default.html");
-	EXPECT_TRUE(_servers[0]->_defaults._autoindex);
+	assertSingleServer();
+	EXPECT_EQ(server()->_defaults._index.len(), 3);
+	EXPECT_EQ(strv(server()->_defaults._index[0]), "index.html");
+	EXPECT_EQ(strv(server()->_defaults._index[1]), "index.htm");
+	EXPECT_EQ(strv(server()->_defaults._index[2]), "default.html");
+	EXPECT_TRUE(server()->_defaults._autoindex);
 }
 
 TEST_F(ConfParserTest, ClientMaxBodySize) {
@@ -76,26 +113,19 @@ TEST_F(ConfParserTest, ClientMaxBodySize) {
 	);
 
 	ASSERT_EQ(_servers.size(), 4);
-	EXPECT_EQ(_servers[0]->_defaults._clientMaxBody, 1024);
-	EXPECT_EQ(_servers[1]->_defaults._clientMaxBody, 5 * 1024);
-	EXPECT_EQ(_servers[2]->_defaults._clientMaxBody, 10 * 1024 * 1024);
-	EXPECT_EQ(_servers[3]->_defaults._clientMaxBody, 2UL * 1024 * 1024 * 1024);
+	EXPECT_EQ(server(0)->_defaults._clientMaxBody, 1024);
+	EXPECT_EQ(server(1)->_defaults._clientMaxBody, 5 * 1024);
+	EXPECT_EQ(server(2)->_defaults._clientMaxBody, 10 * 1024 * 1024);
+	EXPECT_EQ(server(3)->_defaults._clientMaxBody, 2UL * 1024 * 1024 * 1024);
 }
 
 TEST_F(ConfParserTest, ErrorPages) {
-	parse(
-		"server {\n"
-		"  error_page 404 /404.html;\n"
-		"  error_page 500 /500.html;\n"
-		"  error_page 403 /forbidden.html;\n"
-		"}"
-	);
+	parse("server { error_page 404 /404.html; error_page 500 /500.html; error_page 403 /forbidden.html; }");
 
-	ASSERT_EQ(_servers.size(), 1);
-	EXPECT_EQ(_servers[0]->_defaults._error.size(), 3);
-	EXPECT_EQ(_servers[0]->_defaults.findErrorFile(404), "/404.html");
-	EXPECT_EQ(_servers[0]->_defaults.findErrorFile(500), "/500.html");
-	EXPECT_EQ(_servers[0]->_defaults.findErrorFile(403), "/forbidden.html");
+	assertSingleServer();
+	EXPECT_STREQ(server()->_defaults.findErrorFile(404), "/404.html");
+	EXPECT_STREQ(server()->_defaults.findErrorFile(500), "/500.html");
+	EXPECT_STREQ(server()->_defaults.findErrorFile(403), "/forbidden.html");
 }
 
 TEST_F(ConfParserTest, LocationBasic) {
@@ -107,11 +137,11 @@ TEST_F(ConfParserTest, LocationBasic) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->_locations.size(), 3);
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._path), "/");
-	EXPECT_EQ(strv(_servers[0]->_locations[1]._path), "/api");
-	EXPECT_EQ(strv(_servers[0]->_locations[2]._path), "/upload");
+	assertSingleServer();
+	ASSERT_EQ(server()->_locations.size(), 3);
+	EXPECT_STREQ(location(0, 0).getPath(), "/");
+	EXPECT_STREQ(location(0, 1).getPath(), "/api");
+	EXPECT_STREQ(location(0, 2).getPath(), "/upload");
 }
 
 TEST_F(ConfParserTest, LocationAllowedMethods) {
@@ -122,22 +152,18 @@ TEST_F(ConfParserTest, LocationAllowedMethods) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->_locations.size(), 2);
+	assertSingleServer();
+	ASSERT_EQ(server()->_locations.size(), 2);
 
-	// Location 0: GET, POST
-	unsigned char m0 = _servers[0]->_locations[0]._allowedMethods;
-	EXPECT_TRUE(m0 & (1 << 1));   // GET
-	EXPECT_TRUE(m0 & (1 << 2));   // POST
-	EXPECT_FALSE(m0 & (1 << 3));  // PUT
-	EXPECT_FALSE(m0 & (1 << 4));  // DELETE
+	EXPECT_TRUE(hasMethod(location(0, 0), BIT_GET));
+	EXPECT_TRUE(hasMethod(location(0, 0), BIT_POST));
+	EXPECT_FALSE(hasMethod(location(0, 0), BIT_PUT));
+	EXPECT_FALSE(hasMethod(location(0, 0), BIT_DELETE));
 
-	// Location 1: GET, POST, PUT, DELETE
-	unsigned char m1 = _servers[0]->_locations[1]._allowedMethods;
-	EXPECT_TRUE(m1 & (1 << 1));   // GET
-	EXPECT_TRUE(m1 & (1 << 2));   // POST
-	EXPECT_TRUE(m1 & (1 << 3));   // PUT
-	EXPECT_TRUE(m1 & (1 << 4));   // DELETE
+	EXPECT_TRUE(hasMethod(location(0, 1), BIT_GET));
+	EXPECT_TRUE(hasMethod(location(0, 1), BIT_POST));
+	EXPECT_TRUE(hasMethod(location(0, 1), BIT_PUT));
+	EXPECT_TRUE(hasMethod(location(0, 1), BIT_DELETE));
 }
 
 TEST_F(ConfParserTest, LocationReturn) {
@@ -148,12 +174,12 @@ TEST_F(ConfParserTest, LocationReturn) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->_locations.size(), 2);
-	EXPECT_EQ(_servers[0]->_locations[0]._returnCode, 301);
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._returnPath), "/new");
-	EXPECT_EQ(_servers[0]->_locations[1]._returnCode, 410);
-	EXPECT_EQ(strv(_servers[0]->_locations[1]._returnPath), "/error");
+	assertSingleServer();
+	ASSERT_EQ(server()->_locations.size(), 2);
+	EXPECT_EQ(location(0, 0)._returnCode, 301);
+	EXPECT_EQ(strv(location(0, 0)._returnPath), "/new");
+	EXPECT_EQ(location(0, 1)._returnCode, 410);
+	EXPECT_EQ(strv(location(0, 1)._returnPath), "/error");
 }
 
 TEST_F(ConfParserTest, LocationUpload) {
@@ -166,10 +192,10 @@ TEST_F(ConfParserTest, LocationUpload) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->_locations.size(), 1);
-	EXPECT_TRUE(_servers[0]->_locations[0]._uploadEnable);
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._uploadPath), "/var/www/uploads");
+	assertSingleServer();
+	ASSERT_EQ(server()->_locations.size(), 1);
+	EXPECT_TRUE(location(0, 0)._uploadEnable);
+	EXPECT_EQ(strv(location(0, 0)._uploadPath), "/var/www/uploads");
 }
 
 TEST_F(ConfParserTest, LocationCGI) {
@@ -182,16 +208,17 @@ TEST_F(ConfParserTest, LocationCGI) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
-	ASSERT_EQ(_servers[0]->_locations.size(), 1);
-	EXPECT_EQ(_servers[0]->_locations[0]._cgiExtensions.len(), 3);
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiExtensions[0]), ".py");
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiExtensions[1]), ".php");
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiExtensions[2]), ".pl");
-    EXPECT_EQ(_servers[0]->_locations[0]._cgiPath.len(), 3);
-    EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiPath[0]), "/usr/bin/python3");
-    EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiPath[1]), "/usr/bin/php");
-    EXPECT_EQ(strv(_servers[0]->_locations[0]._cgiPath[2]), "/usr/bin/ruby");}
+	assertSingleServer();
+	ASSERT_EQ(server()->_locations.size(), 1);
+	EXPECT_EQ(location(0, 0)._cgiExtensions.len(), 3);
+	EXPECT_EQ(strv(location(0, 0)._cgiExtensions[0]), ".py");
+	EXPECT_EQ(strv(location(0, 0)._cgiExtensions[1]), ".php");
+	EXPECT_EQ(strv(location(0, 0)._cgiExtensions[2]), ".pl");
+	EXPECT_EQ(location(0, 0)._cgiPath.len(), 3);
+	EXPECT_EQ(strv(location(0, 0)._cgiPath[0]), "/usr/bin/python3");
+	EXPECT_EQ(strv(location(0, 0)._cgiPath[1]), "/usr/bin/php");
+	EXPECT_EQ(strv(location(0, 0)._cgiPath[2]), "/usr/bin/ruby");
+}
 
 TEST_F(ConfParserTest, LocationOverrides) {
 	parse(
@@ -207,18 +234,15 @@ TEST_F(ConfParserTest, LocationOverrides) {
 		"}"
 	);
 
-	ASSERT_EQ(_servers.size(), 1);
+	assertSingleServer();
+	EXPECT_EQ(strv(server()->_defaults._root), "/var/www/html");
+	EXPECT_FALSE(server()->_defaults._autoindex);
+	EXPECT_EQ(server()->_defaults._clientMaxBody, 1024 * 1024);
 
-	// Server defaults
-	EXPECT_EQ(strv(_servers[0]->_defaults._root), "/var/www/html");
-	EXPECT_FALSE(_servers[0]->_defaults._autoindex);
-	EXPECT_EQ(_servers[0]->_defaults._clientMaxBody, 1024 * 1024);
-
-	// Location overrides
-	ASSERT_EQ(_servers[0]->_locations.size(), 1);
-	EXPECT_EQ(strv(_servers[0]->_locations[0]._overrides._root), "/var/www/special");
-	EXPECT_TRUE(_servers[0]->_locations[0]._overrides._autoindex);
-	EXPECT_EQ(_servers[0]->_locations[0]._overrides._clientMaxBody, 5 * 1024 * 1024);
+	ASSERT_EQ(server()->_locations.size(), 1);
+	EXPECT_EQ(strv(location(0, 0)._overrides._root), "/var/www/special");
+	EXPECT_TRUE(location(0, 0)._overrides._autoindex);
+	EXPECT_EQ(location(0, 0)._overrides._clientMaxBody, 5 * 1024 * 1024);
 }
 
 TEST_F(ConfParserTest, CompleteConfiguration) {
@@ -258,22 +282,19 @@ TEST_F(ConfParserTest, CompleteConfiguration) {
 
 	ASSERT_EQ(_servers.size(), 2);
 
-	// Server 0
-	EXPECT_EQ(_servers[0]->_listen.size(), 2);
-	EXPECT_EQ(_servers[0]->_listen[0]._port, 8080);
-	EXPECT_EQ(_servers[0]->_listen[1]._port, 8081);
-	EXPECT_EQ(_servers[0]->_locations.size(), 3);
-	EXPECT_EQ(_servers[0]->_defaults._error.size(), 2);
-	EXPECT_EQ(strv(_servers[0]->_defaults._root), "/var/www/html");
+	EXPECT_EQ(server(0)->_listen.size(), 2);
+	EXPECT_EQ(server(0)->_listen[0]._port, 8080);
+	EXPECT_EQ(server(0)->_listen[1]._port, 8081);
+	EXPECT_EQ(server(0)->_locations.size(), 3);
+	EXPECT_EQ(server(0)->_defaults._error.size(), 2);
+	EXPECT_EQ(strv(server(0)->_defaults._root), "/var/www/html");
 
-	// Server 1
-	EXPECT_EQ(_servers[1]->_listen.size(), 1);
-	EXPECT_EQ(_servers[1]->_listen[0]._port, 9090);
-	EXPECT_EQ(_servers[1]->_locations.size(), 0);
-	EXPECT_EQ(strv(_servers[1]->_defaults._root), "/var/www/site2");
+	EXPECT_EQ(server(1)->_listen.size(), 1);
+	EXPECT_EQ(server(1)->_listen[0]._port, 9090);
+	EXPECT_EQ(server(1)->_locations.size(), 0);
+	EXPECT_EQ(strv(server(1)->_defaults._root), "/var/www/site2");
 }
 
-// Error Tests
 TEST_F(ConfParserTest, MissingOpenBrace) {
 	ASSERT_THROW(parse("server listen 8080; }"), std::runtime_error);
 }

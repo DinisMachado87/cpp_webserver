@@ -2,6 +2,7 @@
 
 // Public constructors and destructors
 ASocket::ASocket(int fd, const Server& server):
+	_ptrToSelf(this),
 	_fd(fd),
 	_server(server) {}
 
@@ -11,6 +12,7 @@ ASocket::~ASocket() {
 }
 
 // Public Methods
-int ASocket::getFd() const { return (_fd); }
+int		ASocket::getFd() const { return (_fd); }
+void*	ASocket::getPtrToSelf() const { return _ptrToSelf; }
 
 

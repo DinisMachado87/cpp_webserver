@@ -2,6 +2,7 @@
 #define TOKEN_HPP
 
 #include "StrView.hpp"
+#include "webServ.hpp"
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -48,23 +49,24 @@ public:
 	static const unsigned char* configDelimiters();
 
 	// Methods
-	unsigned char 		next();
-	unsigned char		getNextOfTypes(unsigned char* types, unsigned int nTypes, const char *errStr);
-	unsigned char		getNextOfType(unsigned char type, const char *errStr);
+	uchar		 		next();
+	uchar				getNextOfTypes(uchar* types, uint nTypes, const char *errStr);
+	uchar				getNextOfType(uchar type, const char *errStr);
 	std::runtime_error	parsingErr(const char* expected) const;
 	void				LoadParsingString(std::string& parsingString);
-	char				compare(const char** strArr, unsigned char len);
-	std::string			getString() const;
+	char				compare(const char** strArr, uchar len);
 	bool				compare(StrView& strV) const;
 	bool				compare(const char *str) const;
 	void				extractQuote(const char *str);
 	void				printToken() const;
-	void				trackInUseToken(const StrView& strV);
+	void				trackInUseToken(StrView* strV);
 	void				consolidateBuffer(std::string& newBuffer);
 	// geters
-	unsigned char		getType() const;
+	const char*			getStart() const;
+	uchar				getType() const;
 	StrView				getStrV() const;
 	int					getLineN() const;
+	std::string			getString() const;
 };
 
 #endif

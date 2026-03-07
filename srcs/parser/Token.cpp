@@ -132,7 +132,7 @@ unsigned char	Token::getNextOfTypes(unsigned char* types, unsigned int nTypes, c
 }
 
 bool Token::compare(const char *str) const {
-	const unsigned char len = _strV.getLen();
+	const uchar len = _strV.getLen();
 	if (OK == strncmp(_strV.getStart(), str, len)
 		&& str[len] == '\0')
 		return true;
@@ -144,30 +144,32 @@ bool Token::compare(StrView& strV) const {
 };
 
 char Token::compare(const char** strArr, unsigned char len) {
-	for (unsigned char i = 0; i < len; i++)
+	for (uchar i = 0; i < len; i++)
 		if (OK == compare(strArr[i]))
 			return i;
 	return -1;
 }
 
-unsigned char	Token::getType() const { return (_type); }
-StrView			Token::getStrV() const { return _strV; }
-int				Token::getLineN() const { return _lineN; }
+uchar			Token::getType() const	{ return _type; }
+StrView			Token::getStrV() const	{ return _strV; }
+int				Token::getLineN() const	{ return _lineN; }
+const char*		Token::getStart() const	{ return _strV.getStart(); }
 
 std::string		Token::getString() const {
 	return (std::string(_strV.getStart(), _strV.getLen()));
 }
 
-void	Token::trackInUseToken(const StrView& strV) {
-	_tokensInUse.push_back(&_strV);
-	_strBuffSize += strV.getLen() + 1 ;
+void	Token::trackInUseToken(StrView *strV) {
+	_tokensInUse.push_back(strV);
+	_strBuffSize += strV->getLen() + 1 ;
 }
 
 void	Token::consolidateBuffer(std::string& newBuffer) {
 	newBuffer.reserve(_strBuffSize);
-	for (unsigned int i = 0; i < _tokensInUse.size() ; i++)
+	for (uint i = 0; i < _tokensInUse.size() ; i++)
 		_tokensInUse[i]->move(newBuffer);
 	_tokensInUse.clear();
+	_strBuffSize = 0;
 }
 
 void	Token::LoadParsingString(std::string& parsingString) {
