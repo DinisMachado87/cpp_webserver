@@ -7,11 +7,17 @@
 #include <cstddef>
 #include <cstdlib>
 #include <limits>
+#include <map>
 #include <sstream>
+#include <string>
+#include <utility>
 #include <vector>
 
-// Public constructors and destructors
+using std::map;
+using std::string;
+using std::pair;
 
+// Public constructors and destructors
 Expect::Expect(Token& token, unsigned char& curType):
 	_token(token),
 	_curType(curType) {
@@ -20,7 +26,6 @@ Expect::Expect(Token& token, unsigned char& curType):
 Expect::~Expect() {}
 
 // Error Handler
-
 std::runtime_error Expect::parsingErr(const char* expected) const {
 	std::ostringstream oss;
 	oss << "Error Parsing config: "
@@ -50,18 +55,60 @@ unsigned char	Expect::word(const char *str) {
 }
 
 Span<StrView>	Expect::wordVec(std::vector<StrView>& vecBuf, unsigned int& vecCursor) {
-	unsigned int count = 0;
+	uint count = 0;
 	while (1) {
 		switch (_token.next()) {
 			case Token::WORD:
 				vecBuf.push_back(_token.getStrV());
-				_token.trackInUseToken(_token.getStrV());
+				_token.trackInUseToken(&vecBuf.back());
 				count++;
 				break;
-			case Token::SEMICOLON:
-				return Span<StrView>(vecBuf, vecCursor, count);
+			case Token::SEMICOLON: {
+				Span<StrView> ret(vecBuf, vecCursor, count);
+				vecCursor += count;
+				return ret;
+			}
 			default: throw parsingErr("WORD");
 		}
+	}
+}
+
+void	Expect::errorPage(map<uint, StrView>& errorMap, string& strBuf)
+{
+	uint code = nextInteger();
+
+	// Empty StrView placeholder
+	pair<uint, StrView> placeholderEntry(code, StrView(strBuf));
+
+	// Insert empty StrView placeholder to reserve slot in map
+	// and pass a stable pointer rather than a copy to _expect.path();
+	// insert() returns pair<iterator, bool> where:
+	//   .first  = iterator pointing to the element (inserted or existing)
+	//   .second = true if inserted, false if key already existed
+	pair<map<uint, StrView>::iterator, bool> insertResult = 
+		errorMap.insert(placeholderEntry);
+
+	// Get pointer to the StrView now stored in the map
+	map<uint, StrView>::iterator errorIter = insertResult.first;
+	StrView* pathPtr = &errorIter->second;
+
+	// Fill the empty StrView and register it for consolidation
+	path(pathPtr);
+}
+
+void	Expect::path(StrView* dest) {
+	_token.getNextOfType(Token::WORD, "/<PATH>");
+	if (_token.getStrV().getStart()[0] == '/') {
+		*dest = _token.getStrV();
+		_token.trackInUseToken(dest);
+		return;
+	}
+	throw parsingErr("/<PATH>");
+}
+
+void	Expect::paths(StrView* paths, int n) {
+	for (int i = 0; i < n; i++) {
+		path(&paths[i]);
 	}
 }
 
@@ -82,7 +129,6 @@ size_t Expect::applySizeUnit(size_t value, char unit) {
 }
 
 long Expect::number(const char** endPtr) {
-	_token.getNextOfType(Token::WORD, "word");
 	StrView token = _token.getStrV();
 	const char* start = token.getStart();
 	const char* tokenEnd = start + token.getLen();
@@ -113,7 +159,14 @@ int Expect::integer() {
 	return static_cast<int>(result);
 }
 
+int Expect::nextInteger() {
+	_token.getNextOfType(Token::WORD, "word");
+	return integer();
+}
+
 size_t Expect::size() {
+	_token.getNextOfType(Token::WORD, "word");
+	
 	const char* end;
 	long result = number(&end);
 	size_t size = static_cast<size_t>(result);
@@ -126,19 +179,4 @@ size_t Expect::size() {
 			throw parsingErr("Invalid characters after size unit");
 	}
 	return size;
-}
-StrView	Expect::path() {
-	word("/<PATH>");
-	StrView strv = _token.getStrV();
-	if (strv.getStart()[0] == '/') {
-		_token.trackInUseToken(strv);
-		return strv;
-	}
-	throw parsingErr("/<PATH>");
-}
-
-void	Expect::paths(StrView* paths, int n) {
-	for (int i = 0; i < n; i++) {
-		paths[i] = path();
-	}
 }

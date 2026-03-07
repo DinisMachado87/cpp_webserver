@@ -21,8 +21,6 @@ struct Overrides {
 	bool							_autoindex;
 	Span<StrView>					_index;
 	size_t							_clientMaxBody;
-	// Consolidate buffer method
-	void consolidateStrBuffer(std::string& newBuffer);
 	// Getters
 	size_t			getClientMaxBody() const;
 	const char*		findErrorFile(uint errorCode) const;
@@ -34,6 +32,8 @@ struct Overrides {
 struct Location {
 	// Construnctor
 	Location(std::string& strBuf, std::vector<StrView>& vecBuf, Overrides* serverDefaults);
+	// Assignement Operator
+	Location& operator=(const Location& other);
 
 	enum	_e_allowed_methods {
 		DEFAULT,
@@ -57,10 +57,8 @@ struct Location {
 	uint			_returnCode;
 	bool			_uploadEnable;
 	uchar   		_allowedMethods;
-	//Consolidate buffer method
-	void	consolidateStrBuffer(std::string& newBuffer);
 	// Getters Location Vars
-	uchar		isAllowedMethod(unsigned char methodToCheck) const;
+	uchar		isAllowedMethod(uchar methodToCheck) const;
 	const char*	findCgiPath(StrView& extention) const;
 	const char*	findCgiPath(const char* extention) const;
 	const char*	getPath() const;
@@ -112,7 +110,6 @@ public:
 		unsigned int sizeStrvVecBuf,
 		unsigned int sizeintVecBuf);
 
-	void	consolidateStrBuffer(std::string& newBuffer);
 	// Getters Server Vars
 	size_t	getListenLen();
 	size_t	getLoncationsLen();
