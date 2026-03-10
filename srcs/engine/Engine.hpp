@@ -20,12 +20,13 @@ protected:
 	std::vector<Server *>	_servers;
 	std::map<int, ASocket*>	_sockets;
 	// Methods
+	void				pollLoop();
 	void				createSockets();
 	void				buildServers(std::string& config);
 	std::runtime_error	handleError(const std::string errMsg);
 	ASocket*			getSocket(int fd);
 	void				setEventTo(int epollFd,uint operation,
-					uint eventType, int socketFd, void *ptrToSock);
+							uint eventType, int socketFd, void *ptrToSock);
 	void				addSocket(ASocket* socket);
 	void				deleteSocket(int fd);
 	void				epoll_init();

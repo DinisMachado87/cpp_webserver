@@ -9,21 +9,18 @@
 class Connection: public ASocket {
 private:
 	// Explicit disables
-	Connection(int fd, Server& server);
+	Connection(int fd, const Server& server, struct sockaddr_in serverAddr);
 	Connection(const Connection& other);
 	Connection& operator=(const Connection& other);
+	// Friends
+	friend class Listening;
 
 public:
 	// Constructors and destructors
 	~Connection();
-
-	// Operators overload
-
-	// Getters and setters
-
 	// Methods
-	static Connection*	create(Server& server, Listen& listenSock);
-	void				handle(int events);
+	Connection*			handleIn();
+	void				handleOut();
 };
 
 #endif

@@ -1,4 +1,4 @@
-
+#include "webServ.hpp"
 #include "Expect.hpp"
 #include "StrView.hpp"
 #include "Token.hpp"
@@ -18,7 +18,7 @@ using std::string;
 using std::pair;
 
 // Public constructors and destructors
-Expect::Expect(Token& token, unsigned char& curType):
+Expect::Expect(Token& token, uchar& curType):
 	_token(token),
 	_curType(curType) {
 }
@@ -47,14 +47,14 @@ bool	Expect::onOff() {
 	throw parsingErr("\"on/off\"");
 }
 
-unsigned char	Expect::word(const char *str) {
+uchar	Expect::word(const char *str) {
 	_token.getNextOfType(Token::WORD, str);
 	if (!_token.compare(str))
 		throw parsingErr(str);
 	return Token::WORD;
 }
 
-Span<StrView>	Expect::wordVec(std::vector<StrView>& vecBuf, unsigned int& vecCursor) {
+Span<StrView>	Expect::wordVec(std::vector<StrView>& vecBuf, uint& vecCursor) {
 	uint count = 0;
 	while (1) {
 		switch (_token.next()) {

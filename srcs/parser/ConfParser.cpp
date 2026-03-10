@@ -3,6 +3,7 @@
 #include "StrView.hpp"
 #include "Token.hpp"
 #include "webServ.hpp"
+#include <arpa/inet.h>
 #include <cctype>
 #include <climits>
 #include <cstddef>
@@ -165,7 +166,7 @@ void	ConfParser::parseServerLine() {
 		
 		switch (_token.getNextOfTypes(types, 2, "port or ';'")) {
 			case Token::SEMICOLON:
-				listen._host = 0;
+				listen._host = inet_addr("127.0.0.1");
 				listen._port = num1;
 				break;
 			case Token::WORD:

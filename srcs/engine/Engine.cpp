@@ -1,3 +1,4 @@
+#include "webServ.hpp"
 #include "Engine.hpp"
 #include "ASocket.hpp"
 #include "ConfParser.hpp"
@@ -7,7 +8,6 @@
 #include <cstring>
 #include <map>
 #include <netinet/in.h>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <sys/epoll.h>
@@ -18,14 +18,13 @@ using std::runtime_error;
 using std::map;
 using std::vector;
 using std::string;
+using std::pair;
 
 // Public constructors and destructors
 Engine::Engine():
 	_fdEpoll(-1)
 {
 	epoll_init();
-	// ASocket* newSocket = Listening::create(config);
-	// addSocket(newSocket);
 }
 
 Engine::~Engine() {
@@ -100,26 +99,42 @@ void Engine::createSockets() {
 		vector<Listen>::iterator port = (*server)->_listen.begin();
 		while (port != (*server)->_listen.end()) {
 			Listening* socket = Listening::create(**server, *port);
-			_sockets.insert(std::make_pair(socket->getFd(), socket));
+			addSocket(socket);
 			port++;
 		}
 		server++;
 	}
 }
 
-void Engine::run(string& config) {
-	buildServers(config);
-	createSockets();
-	while (1) {
-		
+void Engine::pollLoop() {
+	struct	epoll_event events[MAX_EVENTS];
+	int		nfds = -1;
+
+	while (true) {
+		nfds = epoll_wait(_fdEpoll, events, MAX_EVENTS, TIMEOUT);
+		if (ERR == nfds) {
+			if (errno == EINTR)
+				continue;
+			handleError("Epoll_wait error: ");
+		}
+
+		for (int i = 0; i < MAX_EVENTS; i++) {
+			ASocket* socket = static_cast<ASocket*>(events[i].data.ptr);
+
+			switch (events[i].events) {
+				case (EPOLLERR | EPOLLHUP):
+					delete socket;
+				case EPOLLIN:
+					socket->handleIn();
+				case EPOLLOUT:
+					socket->handleOut();
+			}
+		}
 	}
 }
 
-
-
-
-
-
-
-
-
+void Engine::run(string& config) {
+	buildServers(config);
+	createSockets();
+	pollLoop();
+}

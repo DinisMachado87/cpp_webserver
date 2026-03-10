@@ -36,20 +36,21 @@ Location::Location(std::string& strBuf, std::vector<StrView>& vecBuf, Overrides*
 	_allowedMethods(DEFAULT) {}
 
 Location& Location::operator=(const Location& other) {
-	if (this != &other) {
-		_overrides = other._overrides;
-		_serverDefaults = other._serverDefaults;
-		_cgiExtensions = other._cgiExtensions;
-		_cgiPath = other._cgiPath;
-		_path = other._path;
-		_returnPath = other._returnPath;
-		_rewrite_old = other._rewrite_old;
-		_rewrite_new = other._rewrite_new;
-		_uploadPath = other._uploadPath;
-		_returnCode = other._returnCode;
-		_uploadEnable = other._uploadEnable;
-		_allowedMethods = other._allowedMethods;
+	if (this == &other) {
+		return *this;
 	}
+	_overrides = other._overrides;
+	_serverDefaults = other._serverDefaults;
+	_cgiExtensions = other._cgiExtensions;
+	_cgiPath = other._cgiPath;
+	_path = other._path;
+	_returnPath = other._returnPath;
+	_rewrite_old = other._rewrite_old;
+	_rewrite_new = other._rewrite_new;
+	_uploadPath = other._uploadPath;
+	_returnCode = other._returnCode;
+	_uploadEnable = other._uploadEnable;
+	_allowedMethods = other._allowedMethods;
 	return *this;
 }
 
@@ -71,10 +72,10 @@ void Server::reserve(
 size_t	Server::getLoncationsLen()					{ return _locations.size(); }
 size_t	Server::getListenLen()						{ return _listen.size(); }
 
-const Span<StrView>&	Overrides::getIndex() const	{ return _index; };
-const char*		Overrides::getRoot() const			{ return _root.getStart(); };
-bool			Overrides::isAutoindexed() const	{ return _autoindex; };
-size_t			Overrides::getClientMaxBody() const	{ return _clientMaxBody; };
+const Span<StrView>&	Overrides::getIndex() const			{ return _index; };
+const char*				Overrides::getRoot() const			{ return _root.getStart(); };
+bool					Overrides::isAutoindexed() const	{ return _autoindex; };
+size_t					Overrides::getClientMaxBody() const	{ return _clientMaxBody; };
 
 const char*		Overrides::findErrorFile(uint errorCode) const {
 	std::map<unsigned int, StrView>::const_iterator it = _error.find(errorCode);
@@ -94,16 +95,16 @@ const char*	Location::findCgiPath(StrView& extention) const{
 }
 
 const char*	Location::findCgiPath(const char* extention) const {
-	for(uint i = 0; i < _cgiExtensions.len() ; i++)
+	for(uint i = 0; i < _cgiExtensions.len(); i++)
 		if (_cgiExtensions[i].compare(extention))
 			return _cgiPath[i].getStart();
 	return NULL;
 }
 
-uchar	Location::isAllowedMethod(uchar methodToCheck) const {
+uchar		Location::isAllowedMethod(uchar methodToCheck) const {
 	return _allowedMethods & (1 << methodToCheck);
 };
 
-in_addr_t Listen::getHost() const	{ return _host; }
+in_addr_t	Listen::getHost() const	{ return _host; }
 uint16_t	Listen::getPort() const	{ return _port; }
 
