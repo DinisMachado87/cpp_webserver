@@ -13,23 +13,12 @@
 using std::runtime_error;
 using std::string;
 
-runtime_error	handleError() {
-	return runtime_error(string("Error creating Socket: ") + strerror(errno));
-}
-
 // Public constructors and destructors
-Connection::Connection(int fd, Server& server):
-	ASocket(fd, server) {}
+Connection::Connection(int fd, const Server& server, struct sockaddr_in serverAddr):
+	ASocket(fd, server, serverAddr) {}
 
 Connection::~Connection() {}
 
 // Public Methods
-Connection*	Connection::create(Server& server, Listen& listenSock) {
-	(void)server;
-	(void)listenSock;
-	return NULL;
-};
-
-void Connection::handle(int events) {
-	(void)events;
-};
+Connection*	Connection::handleIn() { return NULL; };
+void		Connection::handleOut() { };
