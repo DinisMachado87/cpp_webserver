@@ -26,6 +26,7 @@ Connection*	Connection::handleIn() {
 	char	buffer[CHUNK_SIZE + 1];
 	size_t	bitesRead = recv(_fd, buffer, CHUNK_SIZE, 0);
 	write(1, buffer, bitesRead);
+	write(1, "\n___\n", 5);
 	
 	return NULL;
 };

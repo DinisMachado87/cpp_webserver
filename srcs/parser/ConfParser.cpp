@@ -28,8 +28,7 @@ ConfParser::ConfParser(string &configStr, vector<Server*> &servers):
 	_curStrConfig(configStr.c_str()),
 	_vecCursor(0),
 	_token(Token::configDelimiters(), configStr),
-	_curType(0),
-	_expect(_token, _curType)
+	_expect(_token)
 {
 	_newServer->reserve(configStr.length() * 0.6, 10, 10);
 };
@@ -48,20 +47,8 @@ std::runtime_error ConfParser::parsingErr(const char* expected) const {
 }
 
 // Private Methods
-bool	ConfParser::isMethod() {
-	static const char *methods[] = {"DEFAULT", "GET", "POST", "PUT", "DELETE"};
-	static const uchar size = 5;
-
-	for (int i = 1; i < size; i++) {
-		if (true == _token.compare(methods[i])) {
-			_newLocation._allowedMethods |= (1 << i);
-			return true;
-		}
-	}
-	return false;
-}
-
 void	ConfParser::parseMethod() {
+	uchar method;
 	while (1) {
 		_token.next();
 		switch (_token.getType()) {
@@ -71,8 +58,11 @@ void	ConfParser::parseMethod() {
 				return;
 
 			case Token::WORD:
-				if (!isMethod())
+				method = _expect.method();
+				if (!method)
 					throw parsingErr("Unknown method");
+				else
+					_newLocation._allowedMethods |= (1 << method);
 				break;
 
 			default:

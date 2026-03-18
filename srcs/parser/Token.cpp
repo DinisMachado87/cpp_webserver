@@ -36,7 +36,7 @@ const unsigned char* Token::configDelimiters() {
 	static unsigned char isDelimiter[256] = {0};
 	isDelimiter[' '] = SPACE;
 	isDelimiter['\t'] = SPACE;
-	isDelimiter['\n'] = NEWLINE;
+	isDelimiter['\n'] = SPACE;
 	isDelimiter['#'] = COMMENT;
 	isDelimiter['"'] = QUOTE;
 	isDelimiter['{'] = OPENBLOCK;
@@ -79,10 +79,12 @@ unsigned char Token::next() {
 	while (1) {
 		_type = _isDelimiter[(unsigned char)(*str)];
 		switch (_type) {
-			case NEWLINE : // Skip and count '\n'
-				_lineN++;
-				str++;
-				break;
+			case NEWLINE : // extract new line expresion
+				_strV.setStart(str);
+				while (NEWLINE == _isDelimiter[(unsigned char)(*str)])
+					str++;
+				_strV.setLen(str - _strV.getStart());
+				return _type;
 			case SPACE : // Skip cursor
 				str++;
 				break;

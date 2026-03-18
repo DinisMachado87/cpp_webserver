@@ -40,7 +40,6 @@ struct Location {
 		DEFAULT,
 		GET,
 		POST,
-		PUT,
 		DELETE
 	};
 	// Substructs
@@ -97,7 +96,7 @@ protected:
 	// Contiguous Buffers
 	std::string					_strBuf;
 	std::vector<StrView>		_strvVecBuf;
-	std::vector<unsigned int>	_intVecBuf;
+	std::vector<uint>	_intVecBuf;
 	// Private vars
 
 public:
@@ -109,10 +108,7 @@ public:
 	std::vector<Location>		_locations;
 	Overrides					_defaults;
 	// Methods
-	void reserve(
-		unsigned int sizeStrBuf,
-		unsigned int sizeStrvVecBuf,
-		unsigned int sizeintVecBuf);
+	void reserve(uint sizeStrBuf, uint sizeStrvVecBuf, uint sizeintVecBuf);
 
 	// Getters Server Vars
 	size_t	getListenLen();
