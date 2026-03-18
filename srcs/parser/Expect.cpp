@@ -1,3 +1,4 @@
+#include "Server.hpp"
 #include "webServ.hpp"
 #include "Expect.hpp"
 #include "StrView.hpp"
@@ -20,10 +21,8 @@ using std::string;
 using std::pair;
 
 // Public constructors and destructors
-Expect::Expect(Token& token, uchar& curType):
-	_token(token),
-	_curType(curType) {
-}
+Expect::Expect(Token& token):
+	_token(token) {}
 
 Expect::~Expect() {}
 
@@ -39,6 +38,16 @@ std::runtime_error Expect::parsingErr(const char* expected) const {
 }
 
 // Public Methods
+uchar	Expect::method() {
+	static const char *methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
+	static const uchar size = 4;
+
+	for (int i = 1; i < size; i++)
+		if (true == _token.compare(methods[i]))
+			return (i);
+	return Location::DEFAULT;
+}
+
 
 bool	Expect::onOff() {
 	_token.getNextOfType(Token::WORD, "\"on/off\"");
