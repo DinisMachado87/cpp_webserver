@@ -11,31 +11,29 @@
 
 class Request {
 private:
-	std::string					_headerBuff;
+	std::string _headerBuff; // StrView Buffer
+	std::map<StrView, StrView> _headers;
+	uchar _method;
+	StrView _path;
 
-	uchar						_method;
-	StrView						_path;
-
-	std::map<StrView, StrView>	headers;
-
-	friend class				HttpParser;
+	friend class HttpParser;
 
 public:
 	// Constructors and destructors
 	Request();
-	Request(const Request& other);
+	Request(const Request &other);
 	~Request();
 
 	// Operators overload
-	Request& operator=(const Request& other);
-
-	// Getters and setters
+	Request &operator=(const Request &other);
 
 	// Methods
-	const StrView&	getPath() const;
-	uchar			getMethod() const;
 
+	// Getters and setters
+	const StrView *getHeaderValue(const char *charKey) const;
+	const StrView *getHeaderValue(StrView &key) const;
+	const StrView &getPath() const;
+	uchar getMethod() const;
 };
 
 #endif
-

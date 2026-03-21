@@ -10,28 +10,24 @@
 
 class HttpParser {
 private:
-	enum {
-		NEEDS_MORE_INPUT,
-		REQUEST_LINE,
-		HEADERS,
-		BODY,
-		RETURN
-	};
+	enum { NEEDS_MORE_INPUT, REQUEST_LINE, HEADERS, BODY, RETURN };
 
-	Request*	_request;
-	ssize_t		_charRead;
-	ssize_t		_headerLen;
-	uint		_state;
+	Request *_request;
+	ssize_t _charRead;
+	ssize_t _headerLen;
+	uint _state;
 
-	Token		_token;
-	Expect		_expect;
-	char		_buff[BUFFER_SIZE];
+	Token _token;
+	Expect _expect;
+	char _buff[BUFFER_SIZE];
 
 	// Static initializer
-	static const uchar* delimiters();
+	static const uchar *delimiters();
 	// Explicit disables
-	HttpParser& operator=(const HttpParser& other);
-	HttpParser(const HttpParser& other);
+	HttpParser &operator=(const HttpParser &other);
+	HttpParser(const HttpParser &other);
+
+	friend class HttpParserTest;
 
 public:
 	// Constructors and destructors
@@ -43,12 +39,11 @@ public:
 	// Getters and setters
 
 	// Methods
-	void		receive(int fd);
-	void		parseHeaders();
-	void		parseRequestLine();
-	Request*	parse(const char *inBuff, size_t size);
-
+	uchar handleNewline();
+	void receive(int fd);
+	void parseHeaders();
+	void parseRequestLine();
+	Request *parse(const char *inBuff, size_t size);
 };
 
 #endif
-

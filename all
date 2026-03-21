@@ -1,0 +1,1005 @@
+#include "ConfParser.hpp"
+#include "Server.hpp"
+#include "StrView.hpp"
+#include "Token.hpp"
+#include "webServ.hpp"
+#include <arpa/inet.h>
+#include <cctype>
+#include <climits>
+#include <cstddef>
+#include <map>
+#include <sstream>
+#include <stdlib.h>
+#include <string>
+#include <utility>
+#include <vector>
+
+using std::pair;
+using std::map;
+using std::string;
+using std::vector;
+typedef pair<map<uint, StrView>::iterator, bool> errorVecPair;
+
+// Public constructors and destructors
+ConfParser::ConfParser(string &configStr, vector<Server*> &servers):
+	_servers(servers),
+	_newServer(new Server()),
+	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf, &_newServer->_defaults),
+	_curStrConfig(configStr.c_str()),
+	_vecCursor(0),
+	_token(Token::configDelimiters(), configStr),
+	_expect(_token)
+{
+	_newServer->reserve(configStr.length() * 0.6, 10, 10);
+};
+
+ConfParser::~ConfParser() {}
+
+// Err Handeling
+std::runtime_error ConfParser::parsingErr(const char* expected) const {
+	std::ostringstream oss;
+	oss << "Error Parsing config: "
+		<< "Expected \"" << expected << "\" "
+		<< "got \"" << _token.getString() << "\" "
+		<< "in line " << _token.getLineN() << "\"";
+
+	return std::runtime_error(oss.str());
+}
+
+// Private Methods
+void	ConfParser::parseMethod() {
+	uchar method;
+	while (1) {
+		_token.next();
+		switch (_token.getType()) {
+			case Token::SEMICOLON:
+				if (_newLocation._allowedMethods == Location::DEFAULT)
+					throw parsingErr("Method definition");
+				return;
+
+			case Token::WORD:
+				method = _expect.method();
+				if (!method)
+					throw parsingErr("Unknown method");
+				else
+					_newLocation._allowedMethods |= (1 << method);
+				break;
+
+			default:
+				throw parsingErr("Method definition");
+		}
+	}
+}
+
+bool	ConfParser::parseOverrides(Overrides& overrides) {
+	if (_token.compare("root"))
+		_expect.path(&overrides._root);
+	else if (_token.compare("autoindexing"))
+		overrides._autoindex = _expect.onOff();
+	else if (_token.compare("index")){
+		overrides._index = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
+		return true;
+	} else if (_token.compare("client_max_body_size"))
+		overrides._clientMaxBody = _expect.size();
+	else if (_token.compare("error_page"))
+		_expect.errorPage(overrides._error, _newServer->_strBuf);
+	else
+		return false;
+
+	_token.getNextOfType(Token::SEMICOLON, "';'");
+	return true;
+}
+
+void	ConfParser::parseLocationParam() {
+	if (_token.compare("allowed_methods")) {
+		parseMethod();
+		return;
+	}
+	else if (_token.compare("return")) {
+		_newLocation._returnCode = _expect.nextInteger();
+		_expect.path(&_newLocation._returnPath);
+	}
+	else if (_token.compare("rewrite")){
+		_expect.path(&_newLocation._rewrite_old);
+		_expect.path(&_newLocation._rewrite_new);
+	}
+	else if (_token.compare("upload_enable"))
+		_newLocation._uploadEnable = _expect.onOff();
+
+	else if (_token.compare("upload_path"))
+		_expect.path(&_newLocation._uploadPath);
+
+	else if (_token.compare("cgi_extension")) {
+		_newLocation._cgiExtensions = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
+		return;
+	}
+	else if (_token.compare("cgi_path")) {
+		_newLocation._cgiPath = _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
+		return;
+	}
+	else if (parseOverrides(_newLocation._overrides))
+		return;
+	else
+		throw parsingErr("Unknown directive");
+	_token.getNextOfType(Token::SEMICOLON, "';'");
+}
+
+void	ConfParser::parseLocation() {
+	_expect.path(&_newLocation._path);
+	_token.getNextOfType(Token::OPENBLOCK, "{");
+
+	while (1) {
+		_token.next();
+		switch (_token.getType()) {
+			case Token::CLOSEBLOCK:
+				_token.consolidateBuffer(_newServer->_strBuf);
+				_newServer->_locations.push_back(_newLocation);
+				_newLocation = Location(_newServer->_strBuf,
+							_newServer->_strvVecBuf,
+							&_newServer->_defaults);
+				return;
+			case Token::WORD:
+				parseLocationParam();
+				continue;
+			case Token::ENDOFILE:
+				throw parsingErr("}");
+		}
+	}
+}
+
+void ConfParser::parseServerLine() {
+	if (_token.compare("listen")) {
+		_token.getNextOfType(Token::WORD, "listen address");
+
+		Listen listen;
+		string portStr = _token.getString();
+		string ipStr = "*";
+
+		// in case ip:port extracts ip
+		size_t colonPos = portStr.find(':');
+		if (colonPos != string::npos) {
+			ipStr = portStr.substr(0, colonPos);
+			portStr = portStr.substr(colonPos + 1);
+		}
+
+		listen._host = _expect.ip(ipStr);
+		listen._port = _expect.port(portStr);
+
+		_token.getNextOfType(Token::SEMICOLON, "';'");
+		_newServer->_listen.push_back(listen);
+	}
+	else if (!parseOverrides(_newServer->_defaults))
+		throw parsingErr("Unknown directive");
+}
+
+void	ConfParser::nextServer() {
+	while (1) {
+		switch (_token.next()) {
+			case Token::WORD:
+				if (_token.compare("location"))
+					parseLocation();
+				else
+					parseServerLine();
+				continue;
+			case Token::CLOSEBLOCK:
+				_token.consolidateBuffer(_newServer->_strBuf);
+				_servers.push_back(_newServer);
+				_newServer = new Server();
+				return;
+			default:
+				throw parsingErr("Unexpected token");
+		}
+	}
+}
+
+void	ConfParser::createServers() {
+	while (1) {
+		switch (_token.next()) {
+			case Token::WORD:
+				if (_token.compare("server")) {
+					_token.getNextOfType(Token::OPENBLOCK, "{");
+					nextServer();
+				}
+				else throw parsingErr("\"server\"");
+				break;
+			case Token::ENDOFILE:
+				return;
+			default: throw parsingErr("{");
+		}
+	}
+}
+#ifndef CONFPARSER_HPP
+#define CONFPARSER_HPP
+
+#include "Expect.hpp"
+#include "Server.hpp"
+#include "Token.hpp"
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+class ConfParser {
+private:
+	enum e_state { NONE, SERVER, LOCATION, ENDOFILE };
+	enum e_block { INIT_LOCATION, ENDLINE, ENDBLOCK, ENDFILE };
+
+	std::vector<Server *>&	_servers;
+	Server*					_newServer;
+	Location				_newLocation;
+
+	const char*	_curStrConfig;
+	uint		_vecCursor;
+	Token		_token;
+	Expect		_expect;
+
+	// Explicit disables
+	ConfParser();
+	ConfParser& operator=(const ConfParser& other);
+	ConfParser(const ConfParser& other);
+
+	// Methods
+	bool			isMethod();
+	void			nextServer();
+	uchar			parseServer();
+	void			parseServerLine();
+	void			parseLocation();
+	void			parseLocationParam();
+	bool			parseOverrides(Overrides& overrides);
+	void			parseMethod();
+
+	// Error handler
+	std::runtime_error	parsingErr(const char* expected) const ;
+	
+public:
+	// Constructors and destructors
+	ConfParser(std::string& configStr, std::vector<Server*>& servers);
+	~ConfParser();
+
+	// Methods
+	void	createServers();
+};
+
+#endif
+
+#ifndef HTTPPARSER_HPP
+#define HTTPPARSER_HPP
+
+#include "Expect.hpp"
+#include "Request.hpp"
+#include "Token.hpp"
+#include <sys/types.h>
+
+#define BUFFER_SIZE 1024
+
+class HttpParser {
+private:
+	enum { NEEDS_MORE_INPUT, REQUEST_LINE, HEADERS, BODY, RETURN };
+
+	Request *_request;
+	ssize_t _charRead;
+	ssize_t _headerLen;
+	uint _state;
+
+	Token _token;
+	Expect _expect;
+	char _buff[BUFFER_SIZE];
+
+	// Static initializer
+	static const uchar *delimiters();
+	// Explicit disables
+	HttpParser &operator=(const HttpParser &other);
+	HttpParser(const HttpParser &other);
+
+	friend class HttpParserTest;
+
+public:
+	// Constructors and destructors
+	HttpParser();
+	~HttpParser();
+
+	// Operators overload
+
+	// Getters and setters
+
+	// Methods
+	uchar handleNewline();
+	void receive(int fd);
+	void parseHeaders();
+	void parseRequestLine();
+	Request *parse(const char *inBuff, size_t size);
+};
+
+#endif
+#include "HttpParser.hpp"
+#include "Request.hpp"
+#include "StrView.hpp"
+#include "Token.hpp"
+#include "webServ.hpp"
+#include <cstddef>
+#include <iostream>
+#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <sys/socket.h>
+#include <utility>
+
+using std::make_pair;
+using std::runtime_error;
+using std::string;
+
+const uchar *HttpParser::delimiters() {
+	static uchar isDelimiter[256] = {0};
+	isDelimiter[' '] = Token::SPACE;
+	isDelimiter['\t'] = Token::SPACE;
+	isDelimiter['\r'] = Token::NEWLINE;
+	isDelimiter['\n'] = Token::NEWLINE;
+	isDelimiter['#'] = Token::COMMENT;
+	isDelimiter['"'] = Token::QUOTE;
+	isDelimiter[':'] = Token::COLON;
+	isDelimiter['{'] = Token::OPENBLOCK;
+	isDelimiter['}'] = Token::CLOSEBLOCK;
+	isDelimiter['\\'] = Token::EXCAPE;
+	isDelimiter['\0'] = Token::ENDOFILE;
+	return isDelimiter;
+}
+
+// Public constructors and destructors
+HttpParser::HttpParser() :
+	_request(new Request),
+	_charRead(0),
+	_headerLen(0),
+	_state(REQUEST_LINE),
+	_token(delimiters(), _request->_headerBuff),
+	_expect(_token) {}
+
+HttpParser::~HttpParser() {}
+
+// Public Methods
+uchar HttpParser::handleNewline() {
+	_token.getNextOfType(Token::NEWLINE, "NEWLINE");
+
+	if (_token.compare("\r\n\r\n")) {
+		_state = RETURN;
+		return RETURN;
+	}
+
+	else if (_token.compare("\r\n"))
+		return NEEDS_MORE_INPUT;
+
+	throw _expect.parsingErr("NEWLINE");
+}
+
+void HttpParser::receive(int fd) {
+	size_t leftInBuff = MAX_HEADER_SIZE - _headerLen;
+	if (leftInBuff <= 0)
+		throw runtime_error("Max header size exceeded");
+
+	size_t maxToRead = BUFFER_SIZE < leftInBuff ? BUFFER_SIZE : leftInBuff;
+
+	_charRead = recv(fd, &_buff, maxToRead, 0);
+	if (_charRead == ERR)
+		throw runtime_error("Error reading http header: invalid recv()");
+
+	_headerLen += _charRead;
+	_request->_headerBuff.append(_buff, _charRead);
+}
+
+void HttpParser::parseRequestLine() {
+	_token.next();
+	_request->_method = _expect.method();
+
+	_expect.path(&_request->_path);
+
+	_token.next();
+	if (!_token.compare("HTTP/1.1") && !_token.compare("HTTP/1.0"))
+		throw _expect.parsingErr("HTTP/*");
+
+	if (RETURN == handleNewline())
+		return;
+
+	_state = HEADERS;
+}
+
+void HttpParser::parseHeaders() {
+	StrView key(_request->_headerBuff);
+	StrView value(_request->_headerBuff);
+
+	while (1) {
+		_token.getNextOfType(Token::WORD, "Http header key or eof");
+		key = _token.getStrV();
+		std::cout << key.getStr() << std::endl;
+		_token.getNextOfType(Token::COLON, "Missing colon after key");
+
+		_token.getNextStr("http header Value");
+		value = _token.getStrV();
+		std::cout << value.getStr() << std::endl;
+
+		_request->_headers.insert(make_pair(key, value));
+		if (RETURN == handleNewline())
+			return;
+	}
+}
+
+Request *HttpParser::parse(const char *inBuff, size_t size) {
+	_headerLen += size;
+	_request->_headerBuff.append(inBuff, size);
+
+	while (1) {
+		switch (_state) {
+		case (REQUEST_LINE):
+			parseRequestLine();
+			continue;
+		case (HEADERS):
+			parseHeaders();
+			continue;
+		case (RETURN):
+			Request *ret = _request;
+			_request = new Request;
+			return ret;
+		}
+	}
+	return NULL;
+}
+#ifndef EXPECT_HPP
+#define EXPECT_HPP
+
+#include "Span.hpp"
+#include "Token.hpp"
+#include <cstddef>
+#include <map>
+#include <netinet/in.h>
+#include <string>
+#include <vector>
+
+class Expect {
+private:
+	Token&				_token;
+
+	// Explicit disables
+	Expect(const Expect& other);
+	Expect& operator=(const Expect& other);
+
+	// Helpers
+	long				number(const char** endPtr);
+	size_t				applySizeUnit(size_t value, char unit);
+
+public:
+	// Constructors and destructors
+	Expect(Token& token);
+	~Expect();
+
+	// Methods
+	std::runtime_error	parsingErr(const char* expected) const;
+	uchar				method();
+	uint16_t			port(const std::string& portStr);
+	in_addr_t			ip(std::string& ipStr);
+	int					nextInteger();
+	void				errorPage(std::map<uint, StrView>& errorMap, std::string& strBuf);
+	unsigned char		word(const char *str1);
+	Span<StrView>		wordVec(std::vector<StrView>& vecBuf, uint& vecCursor);
+	bool				onOff();
+	int					integer();
+	size_t				size();
+	void				paths(StrView* paths, int n);
+	void				path(StrView* dest);
+};
+
+#endif
+
+#include "Token.hpp"
+#include "StrView.hpp"
+#include "webServ.hpp"
+#include <cctype>
+#include <cstddef>
+#include <cstring>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <unistd.h>
+
+// Public constructors and destructors
+Token::Token(const unsigned char *table, std::string &parsingString) :
+	_isDelimiter(table),
+	_strV(StrView(parsingString)),
+	_type(0),
+	_lineN(0),
+	_pendingQuote(false),
+	_strBuffSize(0) {}
+
+Token::~Token() {}
+
+// Error Handling
+std::runtime_error Token::parsingErr(const char *expected) const {
+	std::ostringstream oss;
+	oss << "Error Parsing config: "
+		<< "Expected \"" << expected << "\" "
+		<< "got \"" << getString() << "\" "
+		<< "in line " << getLineN() << "\"";
+
+	return std::runtime_error(oss.str());
+}
+
+// Public Methods
+const uchar *Token::configDelimiters() {
+	static unsigned char isDelimiter[256] = {0};
+	isDelimiter[' '] = SPACE;
+	isDelimiter['\t'] = SPACE;
+	isDelimiter['\n'] = SPACE;
+	isDelimiter['#'] = COMMENT;
+	isDelimiter['"'] = QUOTE;
+	isDelimiter['{'] = OPENBLOCK;
+	isDelimiter['}'] = CLOSEBLOCK;
+	isDelimiter[';'] = SEMICOLON;
+	isDelimiter['\\'] = EXCAPE;
+	isDelimiter['\0'] = ENDOFILE;
+	return isDelimiter;
+}
+
+void Token::extractQuote(const char *str) {
+	str++;
+
+	while (1) {
+		_type = _isDelimiter[(unsigned char)(*str)];
+		switch (_type) {
+		case NEWLINE:
+		case ENDOFILE:
+			throw std::runtime_error("Error tokenizer: unclosed quote");
+		case EXCAPE:
+			str++;
+			if (*str)
+				str++;
+			continue;
+		case QUOTE:
+			_strV.setLen(str - _strV.getStart());
+			_pendingQuote = true;
+			return;
+		default:
+			str++;
+		}
+	}
+}
+
+uchar Token::next() { return nextCore(false); }
+
+uchar Token::nextStr() { return nextCore(true); }
+
+uchar Token::nextCore(const bool keepSpaces) {
+	_strV.updateOffset(_strV.getLen() + _pendingQuote);
+	_pendingQuote = false;
+	const char *str = _strV.getStart();
+	_strV.setLen(0);
+
+	while (1) {
+		_type = _isDelimiter[(uchar)(*str)];
+		switch (_type) {
+		case NEWLINE: // extract new line expresion
+			_strV.setStart(str);
+			while (NEWLINE == _isDelimiter[(uchar)(*str)])
+				str++;
+			_strV.setLen(str - _strV.getStart());
+			return _type;
+		case SPACE: // Skip cursor
+			str++;
+			break;
+		case COMMENT: // Skip comment
+			while (*str && *str != '\n')
+				str++;
+			break;
+
+		case WORD: // Extract Token
+			_strV.setStart(str);
+			if (keepSpaces)
+				while (WORD == _isDelimiter[(uchar)(*str)] ||
+					   SPACE == _isDelimiter[(uchar)(*str)])
+					str++;
+			else
+				while (WORD == _isDelimiter[(uchar)(*str)])
+					str++;
+			_strV.setLen(str - _strV.getStart());
+			return _type;
+
+		case QUOTE:
+			str++;
+			_strV.setStart(str);
+			extractQuote(str);
+			return _type = WORD;
+
+		default:
+			_strV.setStart(str);
+			_strV.setLen(1);
+			return _type;
+		}
+	}
+}
+
+uchar Token::getNextOfType(uchar type, const char *errStr) {
+	next();
+
+	if (type != _type)
+		throw parsingErr(errStr);
+	return _type;
+}
+
+uchar Token::getNextStr(const char *errStr) {
+	nextStr();
+
+	if (WORD != _type)
+		throw parsingErr(errStr);
+	return _type;
+}
+
+uchar Token::getNextOfTypes(uchar *types, uint nTypes, const char *errStr) {
+	next();
+
+	while (nTypes--) {
+		if (*types == _type)
+			return *types;
+		types++;
+	}
+	throw parsingErr(errStr);
+}
+
+bool Token::compare(const char *str) const {
+	const uchar len = _strV.getLen();
+	if (OK == strncmp(_strV.getStart(), str, len) && str[len] == '\0')
+		return true;
+	return false;
+};
+
+bool Token::compare(StrView &strV) const { return compare(strV.getStart()); };
+
+char Token::compare(const char **strArr, unsigned char len) {
+	for (uchar i = 0; i < len; i++)
+		if (OK == compare(strArr[i]))
+			return i;
+	return -1;
+}
+
+uchar Token::getType() const { return _type; }
+StrView Token::getStrV() const { return _strV; }
+int Token::getLineN() const { return _lineN; }
+const char *Token::getStart() const { return _strV.getStart(); }
+
+std::string Token::getString() const {
+	return (std::string(_strV.getStart(), _strV.getLen()));
+}
+
+void Token::trackInUseToken(StrView *strV) {
+	_tokensInUse.push_back(strV);
+	_strBuffSize += strV->getLen() + 1;
+}
+
+void Token::consolidateBuffer(std::string &newBuffer) {
+	newBuffer.reserve(_strBuffSize);
+	for (uint i = 0; i < _tokensInUse.size(); i++)
+		_tokensInUse[i]->move(newBuffer);
+	_tokensInUse.clear();
+	_strBuffSize = 0;
+}
+
+void Token::LoadParsingString(std::string &parsingString) {
+	_strV.setBuffer(parsingString);
+}
+#include "Server.hpp"
+#include "webServ.hpp"
+#include "Expect.hpp"
+#include "StrView.hpp"
+#include "Token.hpp"
+#include <arpa/inet.h>
+#include <cerrno>
+#include <climits>
+#include <cstddef>
+#include <cstdlib>
+#include <limits>
+#include <map>
+#include <netinet/in.h>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+using std::map;
+using std::string;
+using std::pair;
+
+// Public constructors and destructors
+Expect::Expect(Token& token):
+	_token(token) {}
+
+Expect::~Expect() {}
+
+// Error Handler
+std::runtime_error Expect::parsingErr(const char* expected) const {
+	std::ostringstream oss;
+	oss << "Error Parsing config: "
+		<< "Expected \"" << expected << "\" "
+		<< "got \"" << _token.getString() << "\" "
+		<< "in line " << _token.getLineN() << "\"";
+
+	return std::runtime_error(oss.str());
+}
+
+// Public Methods
+uchar	Expect::method() {
+	static const char *methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
+	static const uchar size = 4;
+
+	for (int i = 1; i < size; i++)
+		if (true == _token.compare(methods[i]))
+			return (i);
+	return Location::DEFAULT;
+}
+
+
+bool	Expect::onOff() {
+	_token.getNextOfType(Token::WORD, "\"on/off\"");
+	if (_token.compare("on"))
+		return (true);
+	if (_token.compare("off"))
+		return (false);
+	throw parsingErr("\"on/off\"");
+}
+
+uchar	Expect::word(const char *str) {
+	_token.getNextOfType(Token::WORD, str);
+	if (!_token.compare(str))
+		throw parsingErr(str);
+	return Token::WORD;
+}
+
+Span<StrView>	Expect::wordVec(std::vector<StrView>& vecBuf, uint& vecCursor) {
+	uint count = 0;
+	while (1) {
+		switch (_token.next()) {
+			case Token::WORD:
+				vecBuf.push_back(_token.getStrV());
+				_token.trackInUseToken(&vecBuf.back());
+				count++;
+				break;
+			case Token::SEMICOLON: {
+				Span<StrView> ret(vecBuf, vecCursor, count);
+				vecCursor += count;
+				return ret;
+			}
+			default: throw parsingErr("WORD");
+		}
+	}
+}
+
+void	Expect::errorPage(map<uint, StrView>& errorMap, string& strBuf)
+{
+	uint code = nextInteger();
+
+	// Empty StrView placeholder
+	pair<uint, StrView> placeholderEntry(code, StrView(strBuf));
+
+	// Insert empty StrView placeholder to reserve slot in map
+	// and pass a stable pointer rather than a copy to _expect.path();
+	// insert() returns pair<iterator, bool> where:
+	//   .first  = iterator pointing to the element (inserted or existing)
+	//   .second = true if inserted, false if key already existed
+	pair<map<uint, StrView>::iterator, bool> insertResult = 
+		errorMap.insert(placeholderEntry);
+
+	// Get pointer to the StrView now stored in the map
+	map<uint, StrView>::iterator errorIter = insertResult.first;
+	StrView* pathPtr = &errorIter->second;
+
+	// Fill the empty StrView and register it for consolidation
+	path(pathPtr);
+}
+
+void	Expect::path(StrView* dest) {
+	_token.getNextOfType(Token::WORD, "/<PATH>");
+	if (_token.getStrV().getStart()[0] == '/') {
+		*dest = _token.getStrV();
+		_token.trackInUseToken(dest);
+		return;
+	}
+	throw parsingErr("/<PATH>");
+}
+
+void	Expect::paths(StrView* paths, int n) {
+	for (int i = 0; i < n; i++) {
+		path(&paths[i]);
+	}
+}
+
+size_t Expect::applySizeUnit(size_t value, char unit) {
+	if (unit == '\0') return value;
+
+	size_t multiplier;
+	switch (tolower(unit)) {
+		case 'k': multiplier = 1024; break;
+		case 'm': multiplier = 1024 * 1024; break;
+		case 'g': multiplier = 1024 * 1024 * 1024; break;
+		default: throw parsingErr("Invalid size unit (use k, m, or g)");
+	}
+
+	if (value > std::numeric_limits<size_t>::max() / multiplier)
+		throw parsingErr("Size value too large");
+	return value * multiplier;
+}
+
+long Expect::number(const char** endPtr) {
+	StrView token = _token.getStrV();
+	const char* start = token.getStart();
+	const char* tokenEnd = start + token.getLen();
+
+	errno = 0;
+	char* parseEnd;
+	long result = strtol(start, &parseEnd, 10);
+
+	if (errno == ERANGE) throw parsingErr("Number out of range");
+	if (parseEnd == start) throw parsingErr("Expected number");
+	if (parseEnd > tokenEnd) throw parsingErr("Invalid number format");
+	if (result < 0) throw parsingErr("Negative number not allowed");
+
+	*endPtr = parseEnd;
+	return result;
+}
+
+int Expect::integer() {
+	const char* end;
+	long result = number(&end);
+
+	StrView token = _token.getStrV();
+	if (end != token.getStart() + token.getLen())
+		throw parsingErr("Unexpected characters after number");
+	if (result > INT_MAX)
+		throw parsingErr("Number exceeds INT_MAX");
+
+	return static_cast<int>(result);
+}
+
+int Expect::nextInteger() {
+	_token.getNextOfType(Token::WORD, "word");
+	return integer();
+}
+
+size_t Expect::size() {
+	_token.getNextOfType(Token::WORD, "word");
+
+	const char* end;
+	long result = number(&end);
+	size_t size = static_cast<size_t>(result);
+	StrView token = _token.getStrV();
+	const char* tokenEnd = token.getStart() + token.getLen();
+
+	if (end != tokenEnd) {
+		size = applySizeUnit(size, *end);
+		if (++end != tokenEnd)
+			throw parsingErr("Invalid characters after size unit");
+	}
+	return size;
+}
+
+in_addr_t Expect::ip(string& ipStr) {
+	const size_t nOctets = 4;
+
+	if (ipStr == "*" || ipStr == "0.0.0.0")
+		return INADDR_ANY;
+
+	if (ipStr == "localhost")
+		ipStr = "127.0.0.1";
+
+	uchar octets[nOctets];
+	size_t start = 0;
+
+	for (size_t i = 0; i < nOctets; i++) {
+		size_t dotPos = (i < 3) ? ipStr.find('.', start) : ipStr.length();
+
+		if (dotPos == string::npos || dotPos == start) // npos == not found/no position
+			throw parsingErr("Invalid IP address");
+
+		string octetStr = ipStr.substr(start, dotPos - start);
+
+		char* end;
+		errno = 0;
+		long octet = strtol(octetStr.c_str(), &end, 10);
+
+		if (errno == ERANGE || *end != '\0' || octet < 0 || octet > 255)
+			throw parsingErr("Invalid IP address");
+
+		octets[i] = static_cast<uchar>(octet);
+		start = dotPos + 1;
+	}
+
+	uint32_t result = 0;
+	result |= octets[0];
+	result |= octets[1] << 8;
+	result |= octets[2] << 16;
+	result |= octets[3] << 24;
+	return static_cast<in_addr_t>(result);
+}
+
+uint16_t Expect::port(const string& portStr) {
+	if (portStr.empty())
+		throw parsingErr("Invalid port number");
+
+	char* end;
+	errno = 0;
+	long port = strtol(portStr.c_str(), &end, 10);
+
+	if (errno == ERANGE || *end != '\0' || port < 1 || port > 65535)
+		throw parsingErr("Port must be between 1 and 65535");
+
+	return static_cast<uint16_t>(port);
+}
+#ifndef TOKEN_HPP
+#define TOKEN_HPP
+
+#include "StrView.hpp"
+#include "webServ.hpp"
+#include <cstddef>
+#include <stdexcept>
+#include <string>
+#include <sys/types.h>
+#include <vector>
+
+class Token {
+protected:
+	const unsigned char *const _isDelimiter;
+
+	StrView _strV;
+	unsigned char _type;
+	int _lineN;
+	bool _pendingQuote;
+
+	size_t _strBuffSize;
+	std::vector<StrView *> _tokensInUse;
+
+private:
+	// Explicit disables
+	Token();
+	Token(const Token &other);
+	Token &operator=(const Token &other);
+
+public:
+	// Constructors and destructors
+	Token(const unsigned char *table, std::string &buffer);
+	~Token();
+
+	enum e_Types {
+		WORD,
+		SPACE,
+		NEWLINE,
+		SEMICOLON,
+		COLON,
+		COMA,
+		COMMENT,
+		QUOTE,
+		OPENBLOCK,
+		CLOSEBLOCK,
+		ENDOFILE,
+		EXCAPE
+	};
+
+	// Static Method for table generation
+	static const unsigned char *configDelimiters();
+
+	// Methods
+	uchar getNextStr(const char *errStr);
+	uchar nextStr();
+	uchar nextCore(const bool keepSpaces);
+	uchar next();
+	uchar getNextOfTypes(uchar *types, uint nTypes, const char *errStr);
+	uchar getNextOfType(uchar type, const char *errStr);
+	std::runtime_error parsingErr(const char *expected) const;
+	void LoadParsingString(std::string &parsingString);
+	char compare(const char **strArr, uchar len);
+	bool compare(StrView &strV) const;
+	bool compare(const char *str) const;
+	void extractQuote(const char *str);
+	void printToken() const;
+	void trackInUseToken(StrView *strV);
+	void consolidateBuffer(std::string &newBuffer);
+	// geters
+	const char *getStart() const;
+	uchar getType() const;
+	StrView getStrV() const;
+	int getLineN() const;
+	std::string getString() const;
+};
+
+#endif
