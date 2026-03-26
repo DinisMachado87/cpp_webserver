@@ -11,10 +11,10 @@
 
 class Token {
 protected:
-	const unsigned char *const _isDelimiter;
+	const uchar *const _isDelimiter;
 
 	StrView _strV;
-	unsigned char _type;
+	uchar _type;
 	int _lineN;
 	bool _pendingQuote;
 
@@ -29,7 +29,7 @@ private:
 
 public:
 	// Constructors and destructors
-	Token(const unsigned char *table, std::string &buffer);
+	Token(const uchar *table, std::string &buffer);
 	~Token();
 
 	enum e_Types {
@@ -43,13 +43,21 @@ public:
 		OPENBLOCK,
 		CLOSEBLOCK,
 		ENDOFILE,
-		EXCAPE
+		DIGIT,
+		EXCAPE,
+		OTHER
 	};
 
 	// Static Method for table generation
-	static const unsigned char *configDelimiters();
+	static const uchar *configDelimiters();
 
 	// Methods
+	uchar loadHttpNewLine();
+	void loadNextChunk(const size_t size);
+	bool loadNextHex(size_t *ret);
+	void loadDigitsUntil(const char c);
+	StrView getRemaining();
+	size_t getSizeLeft() const;
 	const char *getEnd() const;
 	uchar loadNextStr(const char *errStr);
 	uchar loadNextStr();

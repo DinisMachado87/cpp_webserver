@@ -3,6 +3,7 @@
 
 #include "StrView.hpp"
 #include "webServ.hpp"
+#include <cstddef>
 #include <map>
 #include <string>
 #include <sys/types.h>
@@ -15,6 +16,7 @@ private:
 	std::map<StrView, StrView> _headers;
 	uchar _method;
 	StrView _path;
+	StrView _body;
 
 	friend class HttpParser;
 
@@ -28,6 +30,8 @@ public:
 	Request &operator=(const Request &other);
 
 	// Methods
+	const StrView &getBody() const;
+	void print();
 
 	// Getters and setters
 	const StrView *getHeaderValue(const char *charKey) const;

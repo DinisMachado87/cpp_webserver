@@ -4,6 +4,7 @@
 #include "Token.hpp"
 #include "webServ.hpp"
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <ostream>
 #include <stdexcept>
@@ -31,6 +32,9 @@ HttpParser::HttpParser() :
 	_charRead(0),
 	_headerLen(0),
 	_state(REQUEST_LINE),
+	_nextBodySection(0),
+	_needsMoreInput(false),
+	_toGetChunk(false),
 	_token(delimiters(), _request->_headerBuff),
 	_expect(_token) {}
 
@@ -43,9 +47,7 @@ uchar HttpParser::handleNewline() {
 	if (_token.compare("\r\n\r\n")) {
 		_state = RETURN;
 		return RETURN;
-	}
-
-	else if (_token.compare("\r\n"))
+	} else if (_token.compare("\r\n"))
 		return NEEDS_MORE_INPUT;
 
 	throw _expect.parsingErr("NEWLINE");
@@ -98,22 +100,85 @@ void HttpParser::parseHeaders() {
 		value = _token.getStrV();
 
 		_request->_headers.insert(make_pair(key, value));
-		if (RETURN == handleNewline())
+		if (RETURN == handleNewline()) {
+			_state = SET_BODY_SIZE;
 			return;
+		}
+	}
+}
+
+void HttpParser::setBodySize() {
+	const StrView *bodyType = _request->getHeaderValue("Transfer-Encoding");
+	if (bodyType && bodyType->compare("chunked")) {
+		_state = CHUNKED_BODY;
+		return;
+	}
+
+	bodyType = _request->getHeaderValue("Content-Length");
+	if (bodyType) {
+		string size = bodyType->getStr();
+		_nextBodySection = atoll(size.c_str());
+		size_t headerSize = _token.getEnd() - _token.getStart();
+		_request->_headerBuff.reserve(headerSize + _nextBodySection);
+		_state = BODY;
+		return;
+	}
+
+	_state = RETURN;
+}
+
+void HttpParser::getChunk() {
+	if (_token.getSizeLeft() < _nextBodySection) {
+		_nextBodySection -= _token.getSizeLeft();
+		_chunks.push_back(_token.getRemaining());
+		_needsMoreInput = true;
+		return;
+	}
+
+	_token.loadNextChunk(_nextBodySection);
+	_nextBodySection = 0;
+	_chunks.push_back(_token.getStrV());
+
+	switch (_token.loadHttpNewLine()) {
+	case (Token::ENDOFILE):
+		_state = RETURN;
+		return;
+	case (Token::OTHER):
+		_needsMoreInput = true;
+	case (Token::NEWLINE):
+		_state = SET_BODY_SIZE;
 	}
 }
 
 Request *HttpParser::parse(const char *inBuff, size_t size) {
+	_needsMoreInput = false;
 	_headerLen += size;
 	_request->_headerBuff.append(inBuff, size);
 
-	while (1) {
+	while (!_needsMoreInput) {
 		switch (_state) {
 		case (REQUEST_LINE):
 			parseRequestLine();
 			continue;
 		case (HEADERS):
 			parseHeaders();
+			continue;
+		case (SET_BODY_SIZE):
+			setBodySize();
+			continue;
+		case (BODY):
+			if (_token.getSizeLeft() < _nextBodySection) {
+				_needsMoreInput = true;
+				continue;
+			}
+			_request->_body = _token.getRemaining();
+			_state = RETURN;
+			continue;
+		case (SET_CHUNK_SIZE):
+			_needsMoreInput = _token.loadNextHex(&_nextBodySection);
+			continue;
+		case (CHUNKED_BODY):
+			getChunk();
 			continue;
 		case (RETURN):
 			Request *ret = _request;

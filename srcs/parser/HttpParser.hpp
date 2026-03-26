@@ -5,17 +5,33 @@
 #include "Request.hpp"
 #include "Token.hpp"
 #include <sys/types.h>
+#include <vector>
 
 #define BUFFER_SIZE 1024
 
 class HttpParser {
 private:
-	enum { NEEDS_MORE_INPUT, REQUEST_LINE, HEADERS, BODY, RETURN };
+	enum state {
+		NEEDS_MORE_INPUT,
+		REQUEST_LINE,
+		HEADERS,
+		SET_BODY_SIZE,
+		BODY,
+		SET_CHUNK_SIZE,
+		CHUNKED_BODY,
+		NO_BODY,
+		RETURN
+	};
 
 	Request *_request;
 	ssize_t _charRead;
 	ssize_t _headerLen;
 	uint _state;
+	size_t _nextBodySection;
+	bool _needsMoreInput;
+
+	bool _toGetChunk;
+	std::vector<StrView> _chunks;
 
 	Token _token;
 	Expect _expect;
@@ -39,6 +55,8 @@ public:
 	// Getters and setters
 
 	// Methods
+	void getChunk();
+	void setBodySize();
 	uchar handleNewline();
 	void receive(int fd);
 	void parseHeaders();
