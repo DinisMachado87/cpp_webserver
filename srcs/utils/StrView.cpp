@@ -60,6 +60,7 @@ bool StrView::operator<(const StrView &other) const {
 const char *StrView::getStart() const { return _rawBuffer->c_str() + _offset; };
 const char *StrView::getEnd() const { return getStart() + (_len - 1); }
 std::string StrView::getStr() const { return std::string(getStart(), _len); }
+size_t StrView::getBufferSize() const { return _rawBuffer->length(); }
 uint StrView::getOffset() const { return _offset; };
 uint StrView::getLen() const { return _len; };
 
@@ -80,12 +81,19 @@ void StrView::setStartAndLen(const char *start, uint len) {
 void StrView::updateOffset(uint increase) { _offset += increase; }
 void StrView::printStrV() const { write(1, getStart(), _len); }
 bool StrView::compare(StrView &strV) const { return compare(strV.getStart()); }
+void StrView::nullTerminate() { _rawBuffer[_offset + _len - 1] = '\0'; }
 void StrView::trimEnd(const size_t trimSize) {
 	_len > trimSize ? _len -= trimSize : 0;
 }
 
 bool StrView::compare(const char *str) const {
 	if (OK == strncmp(getStart(), str, _len) && str[_len] == '\0')
+		return true;
+	return false;
+};
+
+bool StrView::ncompare(const char *str, size_t len) const {
+	if (OK == strncmp(getStart(), str, len))
 		return true;
 	return false;
 };

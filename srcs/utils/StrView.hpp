@@ -34,6 +34,9 @@ public:
 	void setLen(uint len);
 	void setStartAndLen(const char *start, uint len);
 	// Methods
+	bool ncompare(const char *str, size_t len) const;
+	size_t getBufferSize() const;
+	void nullTerminate();
 	const char *getEnd() const;
 	void trimEnd(const size_t trimSize);
 	bool compare(StrView &str) const;
