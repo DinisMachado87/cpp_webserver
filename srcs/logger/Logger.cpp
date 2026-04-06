@@ -14,6 +14,9 @@
 #include <stdexcept>
 #include <string>
 
+using std::cerr;
+using std::flush;
+
 #define COLOR_DEBUG "\033[36m" // Cyan
 #define COLOR_INFO "\033[32m"  // Green
 #define COLOR_WARN "\033[33m"  // Yellow
@@ -37,6 +40,11 @@ Logger::Logger() :
 
 Logger::~Logger() { _logFile.close(); }
 
+void Logger::deleteLogger() {
+	Logger *loggerPtr = logger();
+	delete loggerPtr;
+	loggerPtr = NULL;
+}
 // Public Methods
 Logger *Logger::logger() {
 	if (!_loggerPtr) {
@@ -51,11 +59,17 @@ Logger *Logger::logger() {
 	return _loggerPtr;
 }
 
-void Logger::print(const stringstream &stream) {
-	if (LOGTOCLI)
-		cout << stream.str() << std::flush;
+void Logger::print(const int level, stringstream &stream) {
+	stream << COLOR_RESET << endl;
+	string str = stream.str();
+	if (LOGTOCLI) {
+		if (level == ERROR)
+			cerr << str;
+		else
+			cout << str;
+	}
 	if (LOGTOFILE)
-		_logFile << stream.str() << std::flush;
+		_logFile << str;
 }
 
 void Logger::color(const int level, stringstream &stream) {
@@ -65,13 +79,19 @@ void Logger::color(const int level, stringstream &stream) {
 		break;
 	case WARNING:
 		stream << COLOR_WARN;
+		break;
 	default:
 		return;
 	}
 }
 
 void Logger::info(const int level, const char *msg, stringstream &stream) {
-	stream << _labels[level] << msg << COLOR_RESET;
+	stream << _labels[level] << msg;
+}
+
+void Logger::info(const int level, const runtime_error &msg,
+				  stringstream &stream) {
+	stream << _labels[level] << msg.what();
 }
 
 void Logger::addHost(stringstream &stream, in_addr_t host) {
@@ -87,25 +107,34 @@ void Logger::log(const int level, const char *msg, const int socket,
 		return;
 
 	stringstream stream;
+	color(level, stream);
 	stream << _clock.now() << " | ";
 	info(level, msg, stream);
 	if (socket)
 		stream << " | Socket: " << socket;
 	if (host != INT_MAX)
 		addHost(stream, host);
-	stream << '\n';
-	print(stream);
+	print(level, stream);
 }
 
 void Logger::logTitle(const char *msg) {
 	stringstream stream;
-	stream << COLOR_PURPLE << "=====" << msg << "=====" << COLOR_RESET << endl;
-	print(stream);
+	stream << COLOR_PURPLE;
+	stream << "=====" << msg << "=====";
+	print(LOG, stream);
+}
+
+void Logger::logError(runtime_error errorMsg) {
+	stringstream stream;
+	color(ERROR, stream);
+	stream << _clock.now() << " | ";
+	stream << errorMsg.what();
+	print(ERROR, stream);
 }
 
 void Logger::logServer(const char *msg, const Server &server) {
 	stringstream stream;
 	stream << msg << '\n';
 	server.getServerStr(stream);
-	print(stream);
+	print(LOG, stream);
 }

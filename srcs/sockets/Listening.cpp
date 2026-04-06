@@ -84,8 +84,8 @@ Connection *Listening::handleIn() {
 		throw handleError("Error accepting client: ");
 
 	setNonBlocking(clientFd);
-	cout << "Accepted connection on Listening socket" << _fd
-		 << "New connection socket " << clientFd << endl;
+	LOGSOCK(Logger::LOG, "Accepted connection on Listening socket", _fd);
+	LOGSOCK(Logger::LOG, "New connection socket ", clientFd);
 
 	return new Connection(clientFd, _server, clientAddr);
 }
