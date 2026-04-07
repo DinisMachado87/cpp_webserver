@@ -4,3 +4,4 @@ documentation
 compile_commands.json
 .clang-format
 serverLog.txt
+.gitignore
