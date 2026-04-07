@@ -14,6 +14,7 @@
 #define LOGGING true
 #define LOGTOCLI true
 #define LOGTOFILE true
+#define NONUM -2
 
 typedef unsigned int uint;
 typedef unsigned char uchar;
