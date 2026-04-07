@@ -2,31 +2,38 @@
 #define CONNECTION_HPP
 
 #include "ASocket.hpp"
+#include "HttpParser.hpp"
 #include "Server.hpp"
+#include "Validator.hpp"
+#include "webServ.hpp"
 #include <cstddef>
-#include <stdint.h>
-#include <string>
 #include <sys/epoll.h>
 
-class Connection: public ASocket {
+class Connection : public ASocket {
 private:
-	std::string	_inBuff;
-	std::string	_outBuff;
-	
+	HttpParser _http;
+	Validator _validator;
+	Response *_responses[RESPONSES_CUE_SIZE];
+	size_t _cur;
+	size_t _back;
+
 	// Explicit disables
-	Connection(int fd, const Server& server, struct sockaddr_in serverAddr);
-	Connection(const Connection& other);
-	Connection& operator=(const Connection& other);
+	Connection(const int fd, const Server &server,
+			   struct sockaddr_in serverAddr);
+	Connection(const Connection &other);
+	Connection &operator=(const Connection &other);
 	// Friends
 	friend class Listening;
 
 public:
 	// Constructors and destructors
 	~Connection();
-	// Methods
-	Connection*			handleIn();
-	void				handleOut();
+	// I/O
+	Connection *handleIn();
+	void handleOut();
+	// Event tracking
+	uint32_t getEventsNextLoop();
+	bool isFull() const;
 };
 
 #endif
-
