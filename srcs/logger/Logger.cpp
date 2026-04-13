@@ -14,8 +14,6 @@
 #include <stdexcept>
 #include <string>
 
-using std::cerr;
-
 #define COLOR_DEBUG "\033[36m" // Cyan
 #define COLOR_INFO "\033[32m"  // Green
 #define COLOR_WARN "\033[33m"  // Yellow
@@ -24,6 +22,7 @@ using std::cerr;
 #define COLOR_RESET "\033[0m"
 #define SEPARATOR "\t|"
 
+using std::cerr;
 using std::cout;
 using std::endl;
 using std::runtime_error;
@@ -101,8 +100,8 @@ void Logger::logError(runtime_error errorMsg) {
 	log(ERROR, errorMsg.what(), 0, INT_MAX);
 }
 
-void Logger::log(const int level, const char *msg, const int socket,
-				 in_addr_t host) {
+void Logger::log(const int level, const char *msg, size_t len, const int num,
+				 const int socket, in_addr_t host) {
 	if (level > _level)
 		return;
 
@@ -114,6 +113,14 @@ void Logger::log(const int level, const char *msg, const int socket,
 		stream << " | Socket: " << socket;
 	if (host != INT_MAX)
 		addHost(stream, host);
+	if (level == CONTENT)
+		stream << '\n';
+	if (len)
+		stream.write(msg, len);
+	else
+		stream << SEPARATOR << msg;
+	if (num != -2)
+		stream << num;
 	print(level, stream);
 }
 

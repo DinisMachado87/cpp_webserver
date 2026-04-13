@@ -5,6 +5,7 @@
 #include "Server.hpp"
 #include "webServ.hpp"
 #include <climits>
+#include <cstddef>
 #include <ctime>
 #include <fstream>
 #include <netinet/in.h>
@@ -33,7 +34,7 @@ public:
 	void addHost(std::stringstream &stream, in_addr_t host);
 	void info(const int level, const char *msg, std::stringstream &stream);
 	void color(const int level, std::stringstream &stream);
-	void log(const int level, const char *msg, const int num,
+	void log(const int level, const char *msg, size_t len, const int num,
 			 const int socket = 0, in_addr_t host = INT_MAX);
 	void logTitle(const char *msg);
 
@@ -49,22 +50,31 @@ private:
 };
 
 #ifdef LOGGING
-#define LOG(level, msg) Logger::logger()->log(level, msg, NONUM, 0, INT_MAX)
+#define LOG(level, msg) Logger::logger()->log(level, msg, 0, NONUM, 0, INT_MAX)
+#define LOGTRUNC(level, msg, len)                                              \
+	Logger::logger()->log(level, msg, len, NONUM, 0, INT_MAX)
 #define LOGNUM(level, msg, num)                                                \
-	Logger::logger()->log(level, msg, num, 0, INT_MAX)
+	Logger::logger()->log(level, msg, 0, num, 0, INT_MAX)
+#define LOGTRUNCNUM(level, msg, len, num)                                      \
+	Logger::logger()->log(level, msg, len, num, 0, INT_MAX)
 #define LOGSOCK(level, msg, socket)                                            \
-	Logger::logger()->log(level, msg, NONUM, socket, INT_MAX)
+	Logger::logger()->log(level, msg, 0, NONUM, socket, INT_MAX)
+#define LOGSOCKTRUNC(level, msg, len, socket)                                  \
+	Logger::logger()->log(level, msg, len, NONUM, socket, INT_MAX)
 #define LOGSOCKNUM(level, msg, num, socket)                                    \
-	Logger::logger()->log(level, msg, num, socket, INT_MAX)
+	Logger::logger()->log(level, msg, 0, num, socket, INT_MAX)
 #define LOGSOCKHOST(level, msg, socket, host)                                  \
-	Logger::logger()->log(level, msg, NONUM, socket, host)
+	Logger::logger()->log(level, msg, 0, NONUM, socket, host)
 #define LOG_TITLE(msg) Logger::logger()->logTitle(msg)
 #define LOG_SERVER(msg, server) Logger::logger()->logServer(msg, server)
 #define LOG_ERROR(errMsg) Logger::logger()->logError(errMsg)
 #else
 #define LOG(level, msg) (void)0
+#define LOGTRUNC(level, msg, len) (void)0
 #define LOGNUM(level, msg, num) (void)0
+#define LOGTRUNCNUM(level, msg, len, num) (void)0
 #define LOGSOCK(level, msg, socket) (void)0
+#define LOGSOCKTRUNC(level, msg, len, socket) (void)0
 #define LOGSOCKNUM(level, msg, socket, num) (void)0
 #define LOGSOCKHOST(level, msg, socket, host) (void)0
 #define LOG_TITLE(msg) (void)0
