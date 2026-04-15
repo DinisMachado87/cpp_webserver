@@ -15,6 +15,7 @@ private:
 	HttpParser _http;
 	Validator _validator;
 	Response *_responses[RESPONSES_CUE_SIZE];
+	Response *_responseReceivingBody;
 	size_t _cur;
 	size_t _back;
 	uchar _handleInState;

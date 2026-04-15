@@ -32,6 +32,7 @@ Connection::Connection(const int fd, const Server &server,
 					   struct sockaddr_in serverAddr) :
 	ASocket(fd, server, serverAddr),
 	_validator(server),
+	_responseReceivingBody(NULL),
 	_cur(0),
 	_back(0),
 	_handleInState(REQUEST) {
@@ -100,20 +101,22 @@ Connection *Connection::handleIn() {
 			delete request;
 			return NULL;
 		}
-
-		LOGSOCKNUM(Logger::LOG, "Storing _response on slot ", _back, _fd);
+		_responseReceivingBody = _responses[_back];
 		_back = ((_back + 1) % RESPONSES_CUE_SIZE);
-	// 	_handleInState = INITBODY;
-	//
-	// case (INITBODY): // fallthrough
-	// 	if (DONE == _responses[_back]->readBodyFirst(buffer, bytesRead))
-	// 		_handleInState = LOOPBODY;
-	// 	return NULL;
-	//
-	// case (LOOPBODY):
-	// 	if (DONE == _responses[_back]->readBodyLoop(buffer, bytesRead))
-	// 		_handleInState = REQUEST;
-	//
+		LOGSOCKNUM(Logger::LOG, "Stored _response on slot ", _back, _fd);
+		_handleInState = INITBODY;
+
+	case (INITBODY): // fallthrough
+		_responseReceivingBody->readBodyFirst(buffer, bytesRead);
+		_handleInState = LOOPBODY;
+		return NULL;
+
+	case (LOOPBODY):
+		if (DONE == _responseReceivingBody->readBodyLoop(buffer, bytesRead)) {
+			_handleInState = REQUEST;
+			_responseReceivingBody = NULL;
+		}
+
 	default: // fallthrough
 		return NULL;
 	}
@@ -142,10 +145,12 @@ void Connection::handleOut() {
 
 uint32_t Connection::getEventsNextLoop() {
 	uint32_t events = 0;
+	LOGSOCKNUM(Logger::LOG, "Events next Loop | _CUR: ", _cur, _fd);
+	LOGSOCKNUM(Logger::LOG, "Events next Loop | _BACK: ", _back, _fd);
 	if (_responses[_cur])
 		events |= EPOLLOUT;
 	if (!isFull())
-		events |= EPOLLIN | EPOLLET;
+		events |= (EPOLLIN | EPOLLET);
 	return events;
 }
 
