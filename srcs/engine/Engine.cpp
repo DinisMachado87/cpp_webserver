@@ -46,7 +46,7 @@ Engine::~Engine() {
 
 // Error handeling
 runtime_error Engine::handleError(const string errMsg, const int err) {
-	return runtime_error(errMsg + strerror(err));
+	return runtime_error(errMsg + " :" + strerror(err));
 }
 
 // Public Methods
@@ -70,7 +70,7 @@ void Engine::setEventTo(int epollFd, uint operation, uint eventType,
 	event.data.ptr = socket;
 	if (OK == epoll_ctl(epollFd, operation, socketFd, &event))
 		return;
-	throw handleError("Error setting epoll socket event type: ", errno);
+	throw handleError(TRACED("Epool_ctr"), errno);
 }
 
 void Engine::addSocket(ASocket *socket) {
@@ -86,11 +86,29 @@ void Engine::addSocket(ASocket *socket) {
 			   socket->trackCurEvents(EPOLLIN | EPOLLET), fd, socket);
 }
 
+// void Engine::deleteSocket(ASocket *socket) {
+// 	int fd = socket->getFd();
+// 	try {
+// 		setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket);
+// 		_sockets.erase(fd);
+// 		delete socket;
+// 		LOGSOCK(Logger::LOG, "Deleted socket", fd);
+// 	} catch (runtime_error &err) {
+// 		LOG_ERROR_SOCK_LABELED("Delete Socket: ", err, fd);
+// 		throw runtime_error(TRACED("Deleting Socket"));
+// 	}
+// }
+//
 void Engine::deleteSocket(ASocket *socket) {
 	int fd = socket->getFd();
-	setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket);
-	delete socket;
-	_sockets.erase(fd);
+	try {
+		setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket);
+		_sockets.erase(fd);
+		delete socket;
+		LOGSOCK(Logger::LOG, "Deleted socket", fd);
+	} catch (runtime_error &err) {
+		throw runtime_error(TRACED(err.what()));
+	}
 }
 
 void Engine::buildServers(string &config) {
@@ -151,7 +169,7 @@ void Engine::pollLoop() {
 		if (ERR == nFds) {
 			if (errno == EINTR)
 				continue;
-			throw handleError("Epoll_wait error: ", errno);
+			throw handleError(TRACED("Epoll_wait: "), errno);
 		}
 
 		for (int i = 0; i < nFds && !g_shutdown; i++) {
@@ -173,7 +191,7 @@ void Engine::pollLoop() {
 				updateFlags(socket);
 
 			} catch (runtime_error err) {
-				LOG_ERROR_LABELED("handeling socket event: ", err);
+				LOG_ERROR_LABELED("Handeling socket event", err);
 				deleteSocket(socket);
 			}
 		}

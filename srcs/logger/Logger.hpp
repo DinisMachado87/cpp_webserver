@@ -26,10 +26,11 @@ private:
 public:
 	typedef enum { NONE, ERROR, WARNING, DEBUG, LOG, CONTENT } e_logLevel;
 	// Methods
-	std::string traced(char *msg, const char *file, const int line,
+	std::string traced(const char *msg, const char *file, const int line,
 					   const char *func);
 	void print(const int level, std::stringstream &stream);
-	void logError(const char *label, std::runtime_error errorMsg);
+	void logError(const char *label, std::runtime_error errorMsg,
+				  const int socket = 0);
 	void info(const int level, const std::runtime_error &msg,
 			  std::stringstream &stream);
 	void logServer(const char *msg, const Server &server);
@@ -70,9 +71,13 @@ private:
 #define LOG_TITLE(msg) Logger::logger()->logTitle(msg)
 #define LOG_SERVER(msg, server) Logger::logger()->logServer(msg, server)
 #define LOG_ERROR(errMsg) Logger::logger()->logError(NULL, errMsg)
+#define LOG_ERROR_SOCK(errMsg, socket)                                         \
+	Logger::logger()->logError(NULL, errMsg, socket)
 #define LOG_ERROR_LABELED(label, errMsg)                                       \
 	Logger::logger()->logError(label, errMsg)
-#define TRACED(str, __FILE__, __LINE__, __FUNCTION__)                          \
+#define LOG_ERROR_SOCK_LABELED(label, errMsg, socket)                          \
+	Logger::logger()->logError(label, errMsg, socket)
+#define TRACED(msg)                                                            \
 	Logger::logger()->traced(msg, __FILE__, __LINE__, __FUNCTION__)
 #else
 #define LOG(level, msg) (void)0
@@ -86,7 +91,9 @@ private:
 #define LOG_TITLE(msg) (void)0
 #define LOG_SERVER(msg) (void)0
 #define LOG_ERROR(errMsg) (void)0
+#define LOG_ERROR_SOCK(errMsg) (void)0
 #define LOG_ERROR_LABELED(label, errMsg) (void)0
+#define LOG_ERROR_SOCK_LABELED(label, errMsg) (void)0
 #define TRACED(str, __FILE__, __LINE__, __FUNCTION__) (void)0
 #endif
 #endif

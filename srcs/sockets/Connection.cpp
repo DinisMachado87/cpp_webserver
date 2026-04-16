@@ -92,21 +92,11 @@ Connection *Connection::handleIn() {
 	try {
 		switch (_handleInState) {
 		case (REQUEST):
-			try {
-				request = _http.parse(buffer, bytesRead);
-			} catch (runtime_error err) {
-				LOG_ERROR_LABELED("parse(): ", err);
-				throw;
-			}
+			request = _http.parse(buffer, bytesRead);
 			if (!request)
 				return NULL;
 
-			try {
-				_responses[_back] = _validator.handleRequest(request);
-			} catch (runtime_error err) {
-				LOG_ERROR_LABELED("handleRequest(): ", err);
-				throw;
-			}
+			_responses[_back] = _validator.handleRequest(request);
 			if (!_responses[_back]) {
 				LOG(Logger::WARNING, "Validator did not return response");
 				delete request;
@@ -118,33 +108,22 @@ Connection *Connection::handleIn() {
 			_handleInState = INITBODY;
 
 		case (INITBODY): // fallthrough
-			try {
-				_responseReceivingBody->readBodyFirst(buffer, bytesRead);
-			} catch (runtime_error err) {
-				LOG_ERROR_LABELED("readBodyFirst", err);
-				throw;
-			}
+			_responseReceivingBody->readBodyFirst(buffer, bytesRead);
 			_handleInState = LOOPBODY;
 			return NULL;
 
 		case (LOOPBODY):
-			try {
-				if (DONE
-					== _responseReceivingBody->readBodyLoop(buffer,
-															bytesRead)) {
-					_handleInState = REQUEST;
-					_responseReceivingBody = NULL;
-				}
-			} catch (runtime_error err) {
-				LOG_ERROR_LABELED("readBodyloop()", err);
-				throw;
+			if (DONE
+				== _responseReceivingBody->readBodyLoop(buffer, bytesRead)) {
+				_handleInState = REQUEST;
+				_responseReceivingBody = NULL;
 			}
 
 		default: // fallthrough
 			return NULL;
 		}
 	} catch (runtime_error err) {
-		LOG_ERROR(err);
+		LOG_ERROR(runtime_error(TRACED(err.what())));
 		throw;
 	}
 <<<<<<< HEAD
@@ -155,6 +134,7 @@ Connection *Connection::handleIn() {
 >>>>>>> 345f9ef (Add support for read/wright body in several iterations)
 
 void Connection::handleOut() {
+	LOGSOCK(Logger::LOG, "Connection Handel out", _fd);
 	if (!_responses[_cur]) {
 		LOG(Logger::WARNING, "Socket handleOut without a response");
 		return;
