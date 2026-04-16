@@ -9,6 +9,7 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <netinet/in.h>
@@ -88,37 +89,63 @@ Connection *Connection::handleIn() {
 	if (!(bytesRead = recvToBuffer(buffer)))
 		return NULL;
 
-	switch (_handleInState) {
+	try {
+		switch (_handleInState) {
+		case (REQUEST):
+			try {
+				request = _http.parse(buffer, bytesRead);
+			} catch (runtime_error err) {
+				LOG_ERROR_LABELED("parse(): ", err);
+				throw;
+			}
+			if (!request)
+				return NULL;
 
-	case (REQUEST):
-		request = _http.parse(buffer, bytesRead);
-		if (!request)
+			try {
+				_responses[_back] = _validator.handleRequest(request);
+			} catch (runtime_error err) {
+				LOG_ERROR_LABELED("handleRequest(): ", err);
+				throw;
+			}
+			if (!_responses[_back]) {
+				LOG(Logger::WARNING, "Validator did not return response");
+				delete request;
+				return NULL;
+			}
+			_responseReceivingBody = _responses[_back];
+			_back = ((_back + 1) % RESPONSES_CUE_SIZE);
+			LOGSOCKNUM(Logger::LOG, "Stored _response on slot ", _back, _fd);
+			_handleInState = INITBODY;
+
+		case (INITBODY): // fallthrough
+			try {
+				_responseReceivingBody->readBodyFirst(buffer, bytesRead);
+			} catch (runtime_error err) {
+				LOG_ERROR_LABELED("readBodyFirst", err);
+				throw;
+			}
+			_handleInState = LOOPBODY;
 			return NULL;
 
-		_responses[_back] = _validator.handleRequest(request);
-		if (!_responses[_back]) {
-			LOG(Logger::WARNING, "Validator did not return response");
-			delete request;
+		case (LOOPBODY):
+			try {
+				if (DONE
+					== _responseReceivingBody->readBodyLoop(buffer,
+															bytesRead)) {
+					_handleInState = REQUEST;
+					_responseReceivingBody = NULL;
+				}
+			} catch (runtime_error err) {
+				LOG_ERROR_LABELED("readBodyloop()", err);
+				throw;
+			}
+
+		default: // fallthrough
 			return NULL;
 		}
-		_responseReceivingBody = _responses[_back];
-		_back = ((_back + 1) % RESPONSES_CUE_SIZE);
-		LOGSOCKNUM(Logger::LOG, "Stored _response on slot ", _back, _fd);
-		_handleInState = INITBODY;
-
-	case (INITBODY): // fallthrough
-		_responseReceivingBody->readBodyFirst(buffer, bytesRead);
-		_handleInState = LOOPBODY;
-		return NULL;
-
-	case (LOOPBODY):
-		if (DONE == _responseReceivingBody->readBodyLoop(buffer, bytesRead)) {
-			_handleInState = REQUEST;
-			_responseReceivingBody = NULL;
-		}
-
-	default: // fallthrough
-		return NULL;
+	} catch (runtime_error err) {
+		LOG_ERROR(err);
+		throw;
 	}
 <<<<<<< HEAD
 	return NULL;

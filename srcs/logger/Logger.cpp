@@ -94,10 +94,17 @@ void Logger::addHost(stringstream &stream, in_addr_t host) {
 		   << '.' << (int)octet[3];
 }
 
-void Logger::logError(runtime_error errorMsg) {
+void Logger::logError(const char *label, runtime_error errorMsg) {
 	if (ERROR > _level)
 		return;
-	log(ERROR, errorMsg.what(), 0, INT_MAX);
+
+	stringstream msg;
+
+	if (label)
+		msg << label;
+	msg << errorMsg.what();
+
+	log(ERROR, msg.str().c_str(), 0, NONUM, 0, INT_MAX);
 }
 
 void Logger::log(const int level, const char *msg, size_t len, const int num,
@@ -131,6 +138,14 @@ void Logger::logTitle(const char *msg) {
 	stream << COLOR_PURPLE;
 	stream << "=====" << msg << "=====";
 	print(LOG, stream);
+}
+
+string Logger::traced(char *msg, const char *file, const int line,
+					  const char *func) {
+	stringstream str;
+
+	str << file << ": " << line << " | " << func << "()\n\t- " << msg << '\n';
+	return str.str();
 }
 
 void Logger::logServer(const char *msg, const Server &server) {

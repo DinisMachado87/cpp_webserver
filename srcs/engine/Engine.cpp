@@ -172,9 +172,8 @@ void Engine::pollLoop() {
 
 				updateFlags(socket);
 
-			} catch (const exception err) {
-				LOG_ERROR(runtime_error(string("Error handeling socket event: ")
-										+ err.what()));
+			} catch (runtime_error err) {
+				LOG_ERROR_LABELED("handeling socket event: ", err);
 				deleteSocket(socket);
 			}
 		}
