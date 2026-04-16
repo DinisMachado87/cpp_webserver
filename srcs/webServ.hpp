@@ -2,6 +2,8 @@
 #define WEBSERV_HPP
 
 #include <csignal>
+#include <sstream>
+#include <string>
 #define VERBOSE 1
 // Unix return code
 #define OK 0

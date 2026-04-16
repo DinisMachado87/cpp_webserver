@@ -5,25 +5,17 @@
 #include "Response.hpp"
 #include "Server.hpp"
 #include "webServ.hpp"
-#include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
-#include <exception>
 #include <fstream>
-#include <iostream>
 #include <netinet/in.h>
-#include <ostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
-using std::cout;
-using std::endl;
-using std::fill;
 using std::ifstream;
 using std::runtime_error;
 using std::string;

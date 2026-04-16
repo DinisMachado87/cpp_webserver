@@ -1,5 +1,7 @@
 #include "Engine.hpp"
 #include "Logger.hpp"
+#include "Signals.hpp"
+#include "webServ.hpp"
 #include <cerrno>
 #include <cstring>
 #include <fstream>
@@ -36,14 +38,18 @@ int main(int argc, char **argv) {
 			throw runtime_error(
 				"Too many arguments. Use: ./webserv <config/path>");
 
+		setup_signals();
 		const char *configPath = argv[1];
 		string config = readFile(configPath);
 		Engine engine;
 		engine.run(config);
-		Logger::deleteLogger();
 	} catch (runtime_error err) {
 		LOG_ERROR(err);
+		LOG(Logger::LOG, "Exiting gracefully from Error");
+		Logger::deleteLogger();
 		return (1);
 	}
+	LOG(Logger::LOG, "Exiting gracefully");
+	Logger::deleteLogger();
 	return (0);
 }
