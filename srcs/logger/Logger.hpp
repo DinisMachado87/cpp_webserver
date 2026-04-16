@@ -24,8 +24,17 @@ private:
 
 	// INTANCE BASED
 public:
-	typedef enum { NONE, ERROR, WARNING, DEBUG, LOG, CONTENT } e_logLevel;
+	typedef enum {
+		NONE,
+		ERROR,
+		WARNING,
+		DEBUG,
+		TITLE,
+		LOG,
+		CONTENT
+	} e_logLevel;
 	// Methods
+	const char *color(const int level);
 	std::string traced(const char *msg, const char *file, const int line,
 					   const char *func);
 	void print(const int level, std::stringstream &stream);
@@ -36,7 +45,6 @@ public:
 	void logServer(const char *msg, const Server &server);
 	void addHost(std::stringstream &stream, in_addr_t host);
 	void info(const int level, const char *msg, std::stringstream &stream);
-	void color(const int level, std::stringstream &stream);
 	void log(const int level, const char *msg, size_t len, const int num,
 			 const int socket = 0, in_addr_t host = INT_MAX);
 	void logTitle(const char *msg);
