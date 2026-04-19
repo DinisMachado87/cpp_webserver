@@ -8,7 +8,6 @@
 #include <bits/types/error_t.h>
 #include <cerrno>
 #include <cstring>
-#include <exception>
 #include <map>
 #include <netinet/in.h>
 #include <stdexcept>
@@ -18,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-using std::exception;
 using std::map;
 using std::runtime_error;
 using std::string;
@@ -185,8 +183,10 @@ void Engine::pollLoop() {
 						if (connection)
 							addSocket(connection);
 				}
-				if (ev & EPOLLOUT)
+				if (ev & EPOLLOUT) {
+					LOG(Logger::LOG, "Received EPOLLOUT");
 					socket->handleOut();
+				}
 
 				updateFlags(socket);
 
