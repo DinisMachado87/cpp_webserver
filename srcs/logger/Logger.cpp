@@ -106,11 +106,11 @@ void Logger::logError(const char *label, const runtime_error &errorMsg,
 		msg << label << ":\n\t";
 	msg << errorMsg.what();
 
-	log(ERROR, msg.str().c_str(), 0, NONUM, socket, INT_MAX);
+	log(ERROR, label, msg.str().c_str(), 0, NONUM, socket, INT_MAX);
 }
 
-void Logger::log(const int level, const char *msg, size_t len, const int num,
-				 const int socket, in_addr_t host, const char *label) {
+void Logger::log(const int level, const char *label, const char *msg,
+				 size_t len, const int num, const int socket, in_addr_t host) {
 	if (level > _level)
 		return;
 

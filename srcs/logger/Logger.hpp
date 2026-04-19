@@ -35,9 +35,9 @@ public:
 	} e_logLevel;
 
 	// Public Methods
-	void log(const int level, const char *msg, size_t len = 0,
-			 const int num = NONUM, const int socket = 0,
-			 in_addr_t host = INT_MAX, const char *label = NULL);
+	void log(const int level, const char *label, const char *msg,
+			 size_t len = 0, const int num = NONUM, const int socket = 0,
+			 in_addr_t host = INT_MAX);
 	void logError(const char *label, const std::runtime_error &errorMsg,
 				  const int socket = 0);
 	std::string traced(const char *msg, const char *file, const int line,
@@ -66,33 +66,33 @@ private:
 
 #ifdef LOGGING
 // Core
-#define LOG_INTERNAL(level, msg, len, num, socket, host, label)                \
-	Logger::logger()->log(level, msg, len, num, socket, host, label)
+#define LOG_INTERNAL(level, label, msg, len, num, socket, host)                \
+	Logger::logger()->log(level, label, msg, len, num, socket, host)
 
 // Labeled
 #define LOG_LABELED(level, label, msg)                                         \
-	LOG_INTERNAL(level, msg, 0, NONUM, 0, INT_MAX, label)
+	LOG_INTERNAL(level, label, msg, 0, NONUM, 0, INT_MAX)
 #define LOGNUM_LABELED(level, label, msg, num)                                 \
-	LOG_INTERNAL(level, msg, 0, num, 0, INT_MAX, label)
+	LOG_INTERNAL(level, label, msg, 0, num, 0, INT_MAX)
 #define LOGSOCK_LABELED(level, label, msg, sock)                               \
-	LOG_INTERNAL(level, msg, 0, NONUM, sock, INT_MAX, label)
+	LOG_INTERNAL(level, label, msg, 0, NONUM, sock, INT_MAX)
 #define LOGSOCKHOST_LABELED(level, label, msg, sock, host)                     \
-	LOG_INTERNAL(level, msg, 0, NONUM, sock, host, label)
+	LOG_INTERNAL(level, label, msg, 0, NONUM, sock, host)
 
 // Base
-#define LOG(level, msg) LOG_INTERNAL(level, msg, 0, NONUM, 0, INT_MAX, NULL)
+#define LOG(level, msg) LOG_INTERNAL(level, NULL, msg, 0, NONUM, 0, INT_MAX)
 #define LOGNUM(level, msg, num)                                                \
-	LOG_INTERNAL(level, msg, 0, num, 0, INT_MAX, NULL)
+	LOG_INTERNAL(level, NULL, msg, 0, num, 0, INT_MAX)
 #define LOGSOCK(level, msg, socket)                                            \
-	LOG_INTERNAL(level, msg, 0, NONUM, socket, INT_MAX, NULL)
+	LOG_INTERNAL(level, NULL, msg, 0, NONUM, socket, INT_MAX)
 #define LOGSOCKNUM(level, msg, num, socket)                                    \
-	LOG_INTERNAL(level, msg, 0, num, socket, INT_MAX, NULL)
+	LOG_INTERNAL(level, NULL, msg, 0, num, socket, INT_MAX)
 #define LOGSOCKHOST(level, msg, port, host, socket)                            \
-	LOG_INTERNAL(level, msg, 0, port, socket, host, NULL)
+	LOG_INTERNAL(level, NULL, msg, 0, port, socket, host)
 
 // TRUNC
 #define LOGTRUNC(level, msg, len)                                              \
-	LOG_INTERNAL(level, msg, len, NONUM, 0, INT_MAX, NULL)
+	LOG_INTERNAL(level, NULL, msg, len, NONUM, 0, INT_MAX)
 
 // Error
 #define LOG_ERROR_SOCK_LABELED(label, errMsg, socket)                          \
@@ -110,7 +110,7 @@ private:
 	Logger::logger()->traced(msg, __FILE__, __LINE__, __FUNCTION__)
 
 #else
-#define LOG_INTERNAL(level, msg, len, num, socket, host, label) (void)0
+#define LOG_INTERNAL(level, label, msg, len, num, socket, host) (void)0
 #define LOG_LABELED(level, label, msg) (void)0
 #define LOGNUM_LABELED(level, label, msg, num) (void)0
 #define LOGSOCK_LABELED(level, label, msg, sock) (void)0
