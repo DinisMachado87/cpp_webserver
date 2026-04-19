@@ -34,10 +34,12 @@ public:
 		CONTENT
 	} e_logLevel;
 
-	// Public Methods
+	// Methods
 	void log(const int level, const char *label, const char *msg,
 			 size_t len = 0, const int num = NONUM, const int socket = 0,
 			 in_addr_t host = INT_MAX);
+	void logNumArr(const int level, const char *label, const char *msg,
+				   const int *nums, size_t numCount, const int socket);
 	void logError(const char *label, const std::runtime_error &errorMsg,
 				  const int socket = 0);
 	std::string traced(const char *msg, const char *file, const int line,
@@ -58,16 +60,18 @@ private:
 
 	// Private Methods
 	void print(const int level, std::stringstream &stream);
-	void info(const int level, const std::runtime_error &msg,
-			  std::stringstream &stream);
 	void addHost(std::stringstream &stream, in_addr_t host);
-	void info(const int level, const char *msg, std::stringstream &stream);
+	void buildLogPrefix(std::stringstream &stream, const int level,
+						const char *label, const int socket, in_addr_t host);
+	void appendMessage(std::stringstream &stream, const char *msg, size_t len);
 };
 
 #ifdef LOGGING
 // Core
 #define LOG_INTERNAL(level, label, msg, len, num, socket, host)                \
 	Logger::logger()->log(level, label, msg, len, num, socket, host)
+#define LOGNUMARR_INTERNAL(level, label, msg, nums, count, socket)             \
+	Logger::logger()->logNumArr(level, label, msg, nums, count, socket)
 
 // Labeled
 #define LOG_LABELED(level, label, msg)                                         \
@@ -94,6 +98,22 @@ private:
 #define LOGTRUNC(level, msg, len)                                              \
 	LOG_INTERNAL(level, NULL, msg, len, NONUM, 0, INT_MAX)
 
+// Num Pair
+#define LOGSOCKNUM2_LABELED(level, label, msg, v1, v2, socket)                 \
+	do {                                                                       \
+		int _arr[] = {v1, v2};                                                 \
+		LOGNUMARR_INTERNAL(level, label, msg, _arr, 2, socket);                \
+	} while (0)
+
+#define LOGNUMS2(level, msg, v1, v2)                                           \
+	LOGSOCKNUM2_LABELED(level, NULL, msg, v1, v2, 0)
+
+#define LOGSOCKNUMS2(level, msg, v1, v2, socket)                               \
+	LOGSOCKNUM2_LABELED(level, NULL, msg, v1, v2, socket)
+
+#define LOGNUMARR2_LABELED(level, label, msg, v1, v2)                          \
+	LOGSOCKNUM2_LABELED(level, label, msg, v1, v2, 0)
+
 // Error
 #define LOG_ERROR_SOCK_LABELED(label, errMsg, socket)                          \
 	Logger::logger()->logError(label, errMsg, socket)
@@ -111,6 +131,7 @@ private:
 
 #else
 #define LOG_INTERNAL(level, label, msg, len, num, socket, host) (void)0
+#define LOGNUMARR_INTERNAL(level, label, msg, nums, count, socket) (void)0
 #define LOG_LABELED(level, label, msg) (void)0
 #define LOGNUM_LABELED(level, label, msg, num) (void)0
 #define LOGSOCK_LABELED(level, label, msg, sock) (void)0
@@ -130,5 +151,9 @@ private:
 #define LOG_ERROR_LABELED(label, errMsg) (void)0
 #define LOG_ERROR_SOCK_LABELED(label, errMsg, socket) (void)0
 #define TRACED(str, __FILE__, __LINE__, __FUNCTION__) (void)0
+#define LOGNUMARR(level, msg, nums, count) (void)0
+#define LOGSOCKNUMARR(level, msg, nums, count, socket) (void)0
+#define LOGNUMARR_LABELED(level, label, msg, nums, count) (void)0
+#define LOGSOCKNUMARR_LABELED(level, label, msg, nums, count, socket) (void)0
 #endif
 #endif

@@ -109,12 +109,9 @@ void Logger::logError(const char *label, const runtime_error &errorMsg,
 	log(ERROR, label, msg.str().c_str(), 0, NONUM, socket, INT_MAX);
 }
 
-void Logger::log(const int level, const char *label, const char *msg,
-				 size_t len, const int num, const int socket, in_addr_t host) {
-	if (level > _level)
-		return;
-
-	stringstream stream;
+void Logger::buildLogPrefix(stringstream &stream, const int level,
+							const char *label, const int socket,
+							in_addr_t host) {
 	stream << _clock.nowTime() << SEPARATOR;
 	stream << _labels[level];
 
@@ -127,12 +124,46 @@ void Logger::log(const int level, const char *label, const char *msg,
 	if (level == CONTENT)
 		stream << '\n';
 	stream << SEPARATOR;
+}
+
+void Logger::appendMessage(stringstream &stream, const char *msg, size_t len) {
 	if (len)
 		stream.write(msg, len);
 	else
 		stream << msg;
-	if (num != -2)
+}
+
+void Logger::log(const int level, const char *label, const char *msg,
+				 size_t len, const int num, const int socket, in_addr_t host) {
+	if (level > _level)
+		return;
+
+	stringstream stream;
+	buildLogPrefix(stream, level, label, socket, host);
+	appendMessage(stream, msg, len);
+
+	if (num != NONUM)
 		stream << num;
+
+	print(level, stream);
+}
+
+void Logger::logNumArr(const int level, const char *label, const char *msg,
+					   const int *nums, size_t numCount, const int socket) {
+	if (level > _level)
+		return;
+
+	stringstream stream;
+	buildLogPrefix(stream, level, label, socket, INT_MAX);
+	stream << msg;
+
+	if (nums && numCount > 0) {
+		for (size_t i = 0; i < numCount; ++i) {
+			if (i > 0)
+				stream << ", ";
+			stream << nums[i];
+		}
+	}
 	print(level, stream);
 }
 
