@@ -72,7 +72,7 @@ Connection *Connection::handleIn() {
 	}
 =======
 	LOGSOCK(Logger::LOG, "Connection Handel in ", _fd);
->>>>>>> 345f9ef (Add support for read/wright body in several iterations)
+	bool state;
 
 	Request *request = NULL;
 	char buffer[RECV_SIZE + 1];
@@ -100,13 +100,16 @@ Connection *Connection::handleIn() {
 			_handleInState = INITBODY;
 
 		case (INITBODY): // fallthrough
+			LOG(Logger::LOG, "[INITBODY]");
 			_responseReceivingBody->readBodyFirst(buffer, bytesRead);
 			_handleInState = LOOPBODY;
 			return NULL;
 
 		case (LOOPBODY):
-			if (DONE
-				== _responseReceivingBody->readBodyLoop(buffer, bytesRead)) {
+			state = _responseReceivingBody->readBodyLoop(buffer, bytesRead);
+			LOG_LABELED(Logger::LOG, "[LOOPBODY] status",
+						(state ? "DONE" : "ONGOING"));
+			if (DONE == state) {
 				_handleInState = REQUEST;
 				_responseReceivingBody = NULL;
 			}
@@ -127,29 +130,36 @@ Connection *Connection::handleIn() {
 
 void Connection::handleOut() {
 	LOGSOCK(Logger::LOG, "Connection Handel out", _fd);
-	if (!_responses[_cur]) {
-		LOG(Logger::WARNING, "Socket handleOut without a response");
-		return;
-	}
+	try {
+		if (!_responses[_cur]) {
+			LOGSOCK(Logger::WARNING, "handleOut called without a response",
+					_fd);
+			return;
+		}
 
-	LOGSOCKNUM(Logger::LOG, "Sending response on slot: ", _cur, _fd);
-	if (DONE == _responses[_cur]->sendResponse(_fd)) {
-		LOGSOCKNUM(Logger::LOG, "DONE: Deleting response on slot: ", _cur, _fd);
-
-		delete _responses[_cur];
-		_responses[_cur] = NULL;
-		_cur = (_cur + 1) % RESPONSES_CUE_SIZE;
+		bool state = _responses[_cur]->sendResponse(_fd);
+		LOGSOCK_LABELED(Logger::LOG, "SENT response status ",
+						(state ? "DONE" : "ONGOING"), _fd);
+		if (DONE == state) {
+			LOGSOCKNUM(Logger::LOG, "DONE: Deleting response idx: ", _cur, _fd);
+			delete _responses[_cur];
+			_responses[_cur] = NULL;
+			_cur = (_cur + 1) % RESPONSES_CUE_SIZE;
+		}
+	} catch (const runtime_error &err) {
+		LOG_ERROR(err);
+		throw;
 	}
 }
 
 uint32_t Connection::getEventsNextLoop() {
 	uint32_t events = 0;
-	LOGSOCKNUM(Logger::LOG, "Events next Loop | _CUR: ", _cur, _fd);
-	LOGSOCKNUM(Logger::LOG, "Events next Loop | _BACK: ", _back, _fd);
+	LOGSOCKNUM(Logger::LOG, "_responses[i] next Loop | _CUR: ", _cur, _fd);
+	LOGSOCKNUM(Logger::LOG, "_responses[i] next Loop | _BACK: ", _back, _fd);
 	if (_responses[_cur])
 		events |= EPOLLOUT;
 	if (!isFull())
-		events |= (EPOLLIN | EPOLLET);
+		events |= EPOLLIN;
 	return events;
 }
 
