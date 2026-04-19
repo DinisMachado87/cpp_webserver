@@ -25,6 +25,8 @@ private:
 			   struct sockaddr_in serverAddr);
 	Connection(const Connection &other);
 	Connection &operator=(const Connection &other);
+	// Methods
+	int readBody(bool init, const char *label, char *buffer, ssize_t size);
 	// Friends
 	friend class Listening;
 

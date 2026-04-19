@@ -4,6 +4,7 @@
 #include "Request.hpp"
 #include "Response.hpp"
 #include "Server.hpp"
+#include "exception/Exception.hpp"
 #include "webServ.hpp"
 #include <cerrno>
 #include <cstddef>
@@ -45,34 +46,32 @@ ssize_t Connection::recvToBuffer(char *buffer) {
 	ssize_t bytesRead = recv(_fd, buffer, RECV_SIZE, 0);
 
 	if (bytesRead <= ERR && !(errno == EAGAIN || errno == EWOULDBLOCK))
-		LOG_ERROR(runtime_error("recv() failure reading from client"));
-	if (bytesRead <= 0)
-		return 0;
+		throw(runtime_error(TRACED("recv() failure reading from client")
+							+ string(strerror(errno))));
+	if (bytesRead == 0)
+		throw ClientClosed();
 
 	buffer[bytesRead] = '\0';
-	LOG(Logger::CONTENT, "RECV buffer: ");
-	LOG(Logger::CONTENT, buffer);
+	LOG_LABELED(Logger::CONTENT, "RECV buffer: ", buffer);
 	return bytesRead;
+}
+
+int Connection::readBody(bool init, const char *label, char *buffer,
+						 ssize_t size) {
+	LOG(Logger::LOG, label);
+	int state = init ? _responseReceivingBody->readBodyFirst(buffer, size)
+					 : _responseReceivingBody->readBodyLoop(buffer, size);
+	LOG_LABELED(Logger::LOG, label, (state ? "DONE" : "ONGOING"));
+	if (DONE == state) {
+		_responseReceivingBody = NULL;
+		return REQUEST;
+	} else
+		return LOOPBODY;
 }
 
 // Public Methods
 Connection *Connection::handleIn() {
-<<<<<<< HEAD
-	char buffer[RECV_SIZE + 1];
-	ssize_t bytesRead = recv(_fd, buffer, RECV_SIZE, 0);
-	if (bytesRead > 0) {
-		buffer[bytesRead] = '\0';
-		cout << "RECV buffer: " << buffer << endl;
-	} else if (bytesRead == 0) {
-		return NULL;
-	} else if (bytesRead >= ERR) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return NULL;
-		throw runtime_error("Error: recv() failure reading from client");
-	}
-=======
-	LOGSOCK(Logger::LOG, "Connection Handel in ", _fd);
-	bool state;
+	LOGSOCK(Logger::LOG, "Connection Handel in", _fd);
 
 	Request *request = NULL;
 	char buffer[RECV_SIZE + 1];
@@ -83,7 +82,7 @@ Connection *Connection::handleIn() {
 
 	try {
 		switch (_handleInState) {
-		case (REQUEST):
+		case REQUEST:
 			request = _http.parse(buffer, bytesRead);
 			if (!request)
 				return NULL;
@@ -97,26 +96,17 @@ Connection *Connection::handleIn() {
 			_responseReceivingBody = _responses[_back];
 			_back = ((_back + 1) % RESPONSES_CUE_SIZE);
 			LOGSOCKNUM(Logger::LOG, "Stored _response on slot ", _back, _fd);
-			_handleInState = INITBODY;
 
-		case (INITBODY): // fallthrough
-			LOG(Logger::LOG, "[INITBODY]");
-			_responseReceivingBody->readBodyFirst(buffer, bytesRead);
-			_handleInState = LOOPBODY;
+		case INITBODY: // fallthrough
+			_handleInState = readBody(true, "[INITBODY]", buffer, bytesRead);
 			return NULL;
 
-		case (LOOPBODY):
-			state = _responseReceivingBody->readBodyLoop(buffer, bytesRead);
-			LOG_LABELED(Logger::LOG, "[LOOPBODY] status",
-						(state ? "DONE" : "ONGOING"));
-			if (DONE == state) {
-				_handleInState = REQUEST;
-				_responseReceivingBody = NULL;
-			}
-
+		case LOOPBODY:
+			_handleInState = readBody(false, "[LOOPBODY]", buffer, bytesRead);
 		default: // fallthrough
 			return NULL;
 		}
+
 	} catch (runtime_error err) {
 		LOG_ERROR(runtime_error(TRACED(err.what())));
 		throw;
@@ -132,8 +122,7 @@ void Connection::handleOut() {
 	LOGSOCK(Logger::LOG, "Connection Handel out", _fd);
 	try {
 		if (!_responses[_cur]) {
-			LOGSOCK(Logger::WARNING, "handleOut called without a response",
-					_fd);
+			LOGSOCK(Logger::WARNING, "handleOut called without response", _fd);
 			return;
 		}
 
@@ -154,8 +143,8 @@ void Connection::handleOut() {
 
 uint32_t Connection::getEventsNextLoop() {
 	uint32_t events = 0;
-	LOGSOCKNUM(Logger::LOG, "_responses[i] next Loop | _CUR: ", _cur, _fd);
-	LOGSOCKNUM(Logger::LOG, "_responses[i] next Loop | _BACK: ", _back, _fd);
+	LOGSOCKNUMS2(Logger::LOG, "_responses[i] next Loop cur/back: ", _cur, _back,
+				 _fd);
 	if (_responses[_cur])
 		events |= EPOLLOUT;
 	if (!isFull())
@@ -163,4 +152,7 @@ uint32_t Connection::getEventsNextLoop() {
 	return events;
 }
 
-bool Connection::isFull() const { return (_responses[_back]); }
+bool Connection::isFull() const {
+	int next = (_cur + 1) % RESPONSES_CUE_SIZE;
+	return (_responses[_cur] && _responses[next]);
+}

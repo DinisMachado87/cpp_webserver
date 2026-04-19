@@ -4,6 +4,7 @@
 #include "Connection.hpp"
 #include "Listening.hpp"
 #include "Logger.hpp"
+#include "exception/Exception.hpp"
 #include "webServ.hpp"
 #include <bits/types/error_t.h>
 #include <cerrno>
@@ -14,6 +15,7 @@
 #include <stdint.h>
 #include <string>
 #include <sys/epoll.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -80,23 +82,10 @@ void Engine::addSocket(ASocket *socket) {
 		throw handleError("Error adding socket", errno);
 
 	_sockets[fd] = socket;
-	setEventTo(_fdEpoll, EPOLL_CTL_ADD,
-			   socket->trackCurEvents(EPOLLIN | EPOLLET), fd, socket);
+	setEventTo(_fdEpoll, EPOLL_CTL_ADD, socket->trackCurEvents(EPOLLIN), fd,
+			   socket);
 }
 
-// void Engine::deleteSocket(ASocket *socket) {
-// 	int fd = socket->getFd();
-// 	try {
-// 		setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket);
-// 		_sockets.erase(fd);
-// 		delete socket;
-// 		LOGSOCK(Logger::LOG, "Deleted socket", fd);
-// 	} catch (runtime_error &err) {
-// 		LOG_ERROR_SOCK_LABELED("Delete Socket: ", err, fd);
-// 		throw runtime_error(TRACED("Deleting Socket"));
-// 	}
-// }
-//
 void Engine::deleteSocket(ASocket *socket) {
 	int fd = socket->getFd();
 	try {
@@ -137,13 +126,13 @@ void Engine::logFlagUpdates(ASocket *socket, uint32_t events,
 	bool EventsIn = events & EPOLLIN;
 	bool EventsOut = events & EPOLLOUT;
 	if (!newEventsIn && EventsIn)
-		LOGSOCK(Logger::LOG, "Removing EPOLLIN", socket->getFd());
+		LOGSOCK(Logger::LOG, "Removing EPOLLIN\n", socket->getFd());
 	else if (newEventsIn && !EventsIn)
-		LOGSOCK(Logger::LOG, "Adding EPOLLIN", socket->getFd());
+		LOGSOCK(Logger::LOG, "Adding EPOLLIN\n", socket->getFd());
 	if (!newEventsOut && EventsOut)
-		LOGSOCK(Logger::LOG, "Removing EPOLLOUT", socket->getFd());
+		LOGSOCK(Logger::LOG, "Removing EPOLLOUT\n", socket->getFd());
 	else if (newEventsOut && !EventsOut)
-		LOGSOCK(Logger::LOG, "taking EPOLLOUT", socket->getFd());
+		LOGSOCK(Logger::LOG, "Adding EPOLLOUT\n", socket->getFd());
 }
 
 void Engine::updateFlags(ASocket *socket) {
@@ -163,6 +152,7 @@ void Engine::pollLoop() {
 
 	while (!g_shutdown) {
 		nFds = -1;
+		usleep(100000);
 		nFds = epoll_wait(_fdEpoll, events, MAX_EVENTS, TIMEOUT);
 		if (ERR == nFds) {
 			if (errno == EINTR)
@@ -174,10 +164,11 @@ void Engine::pollLoop() {
 			ASocket *socket = static_cast<ASocket *>(events[i].data.ptr);
 			uint32_t ev = events[i].events;
 			try {
-				if (ev & (EPOLLERR | EPOLLHUP)) {
-					deleteSocket(socket);
-					continue;
-				}
+				if (ev & EPOLLERR)
+					throw runtime_error(TRACED("EpollWait")
+										+ string(strerror(errno)));
+				if (ev & EPOLLHUP)
+					throw ClientClosed();
 				if (ev & EPOLLIN) {
 					while (Connection *connection = socket->handleIn())
 						if (connection)
@@ -190,7 +181,10 @@ void Engine::pollLoop() {
 
 				updateFlags(socket);
 
-			} catch (runtime_error err) {
+			} catch (const ClientClosed &ex) {
+				LOGSOCK(Logger::LOG, ex.what(), socket->getFd());
+				deleteSocket(socket);
+			} catch (const runtime_error &err) {
 				LOG_ERROR_LABELED("Handeling socket event", err);
 				deleteSocket(socket);
 			}
