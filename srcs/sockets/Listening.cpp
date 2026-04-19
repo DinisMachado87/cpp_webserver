@@ -68,7 +68,7 @@ Listening *Listening::create(const Server &server, const Listen &listenSock) {
 
 	if (OK == listen(fdSock, SOMAXCONN)) {
 		LOGSOCKHOST(Logger::LOG, "Started listening on ", listenSock.getPort(),
-					listenSock.getHost());
+					listenSock.getHost(), fdSock);
 		return new Listening(fdSock, server, addr);
 	} else
 		throw handleFdError("Error starting to listen with socket ", fdSock);

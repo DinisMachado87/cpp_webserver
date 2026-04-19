@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstring>
 #include <ctime>
-#include <exception>
 #include <fstream>
 #include <iostream>
 #include <istream>
@@ -16,10 +15,10 @@
 #include <string>
 #include <unistd.h>
 
-#define COLOR_DEBUG "\033[36m" // Cyan
-#define COLOR_INFO "\033[32m"  // Green
-#define COLOR_WARN "\033[33m"  // Yellow
-#define COLOR_ERROR "\033[31m" // Red
+#define COLOR_DEBUG "\033[36m"
+#define COLOR_INFO "\033[32m"
+#define COLOR_WARN "\033[33m"
+#define COLOR_ERROR "\033[31m"
 #define COLOR_PURPLE "\033[35m"
 #define COLOR_RESET "\033[0m"
 #define SEPARATOR "\t|"
@@ -36,6 +35,8 @@ using std::stringstream;
 Logger *Logger::_loggerPtr = NULL;
 const char *Logger::_labels[] = {"[NONE]",	"[ERROR]", "[WARNING]", "[DEBUG]",
 								 "[TITLE]", "[LOG]",   "[CONTENT]"};
+const char *Logger::_color[]
+	= {NULL, COLOR_ERROR, COLOR_WARN, NULL, COLOR_PURPLE, COLOR_INFO, NULL};
 
 // Public constructors and destructors
 Logger::Logger() :
@@ -67,27 +68,16 @@ Logger *Logger::logger() {
 	return _loggerPtr;
 }
 
-const char *Logger::color(const int level) {
-	switch (level) {
-	case ERROR:
-		return COLOR_ERROR;
-	case WARNING:
-		return COLOR_WARN;
-	case TITLE:
-		return COLOR_PURPLE;
-	case LOG:
-		return COLOR_INFO;
-	}
-	return "";
-}
-
 void Logger::print(const int level, stringstream &stream) {
 	string str = stream.str();
+	const char *color = _color[level];
 	if (LOGTOCLI) {
 		if (level == ERROR)
-			cerr << color(level) << str << COLOR_RESET << endl;
+			cerr << color << str << COLOR_RESET << endl;
+		else if (color)
+			cout << _color[level] << str << COLOR_RESET << endl;
 		else
-			cout << color(level) << str << COLOR_RESET << endl;
+			cout << str << endl;
 	}
 	if (LOGTOFILE) {
 		_logFile << str << endl;
@@ -105,7 +95,7 @@ void Logger::addHost(stringstream &stream, in_addr_t host) {
 		   << '.' << (int)octet[3];
 }
 
-void Logger::logError(const char *label, runtime_error errorMsg,
+void Logger::logError(const char *label, const runtime_error &errorMsg,
 					  const int socket) {
 	if (ERROR > _level)
 		return;
@@ -120,23 +110,27 @@ void Logger::logError(const char *label, runtime_error errorMsg,
 }
 
 void Logger::log(const int level, const char *msg, size_t len, const int num,
-				 const int socket, in_addr_t host) {
+				 const int socket, in_addr_t host, const char *label) {
 	if (level > _level)
 		return;
 
 	stringstream stream;
 	stream << _clock.nowTime() << SEPARATOR;
 	stream << _labels[level];
+
+	if (label)
+		stream << SEPARATOR << label;
 	if (socket)
 		stream << " | Socket: " << socket;
 	if (host != INT_MAX)
 		addHost(stream, host);
 	if (level == CONTENT)
 		stream << '\n';
+	stream << SEPARATOR;
 	if (len)
 		stream.write(msg, len);
 	else
-		stream << SEPARATOR << msg;
+		stream << msg;
 	if (num != -2)
 		stream << num;
 	print(level, stream);
