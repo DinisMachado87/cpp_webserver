@@ -1,4 +1,5 @@
 #include "ASocket.hpp"
+#include "Logger.hpp"
 #include "webServ.hpp"
 #include <cerrno>
 #include <cstring>
@@ -34,9 +35,11 @@ runtime_error ASocket::handleError(const string errMsg) {
 int ASocket::getFd() const { return (_fd); }
 
 int ASocket::setNonBlocking(int fd) {
-	int flags = fcntl(fd, F_GETFD);
-	if (ERR == fcntl(fd, F_SETFD, flags | O_NONBLOCK))
-		throw handleError("Error setting client sock non-blocking: ");
+	int flags = fcntl(fd, F_GETFL);
+	if (flags == ERR)
+		throw runtime_error(TRACED("Getting fcntl flags"));
+	if (ERR == fcntl(fd, F_SETFL, flags | O_NONBLOCK))
+		throw handleError(TRACED("Setting client sock non-blocking"));
 	return OK;
 }
 
