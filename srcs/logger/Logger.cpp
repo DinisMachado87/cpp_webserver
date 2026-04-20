@@ -21,7 +21,7 @@
 #define COLOR_ERROR "\033[31m"
 #define COLOR_PURPLE "\033[35m"
 #define COLOR_RESET "\033[0m"
-#define SEPARATOR "\t|"
+#define SEPARATOR " | "
 
 using std::cerr;
 using std::cout;
@@ -82,10 +82,6 @@ void Logger::print(const int level, stringstream &stream) {
 	if (LOGTOFILE) {
 		_logFile << str << endl;
 	}
-}
-
-void Logger::info(const int level, const char *msg, stringstream &stream) {
-	stream << _labels[level] << " " << msg;
 }
 
 void Logger::addHost(stringstream &stream, in_addr_t host) {
@@ -184,7 +180,7 @@ string Logger::traced(const char *msg, const char *file, const int line,
 }
 
 void Logger::logServer(const char *msg, const Server &server) {
-	if (LOG > _level)
+	if (CONTENT > _level)
 		return;
 	stringstream stream;
 	stream << msg << '\n';
