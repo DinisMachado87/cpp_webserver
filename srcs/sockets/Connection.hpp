@@ -3,8 +3,8 @@
 
 #include "ASocket.hpp"
 #include "HttpParser.hpp"
+#include "Response.hpp"
 #include "Server.hpp"
-#include "Validator.hpp"
 #include "webServ.hpp"
 #include <cstddef>
 #include <sys/epoll.h>
@@ -13,7 +13,6 @@ class Connection : public ASocket {
 private:
 	enum _handleInState { REQUEST, RESPONSE, INITBODY, LOOPBODY };
 	HttpParser _http;
-	Validator _validator;
 	Response *_responses[RESPONSES_CUE_SIZE];
 	Response *_responseReceivingBody;
 	size_t _cur;
@@ -26,7 +25,6 @@ private:
 	Connection(const Connection &other);
 	Connection &operator=(const Connection &other);
 	// Methods
-	int readBody(bool init, const char *label, char *buffer, ssize_t size);
 	// Friends
 	friend class Listening;
 

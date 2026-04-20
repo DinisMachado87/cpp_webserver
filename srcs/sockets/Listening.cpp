@@ -25,14 +25,14 @@ using std::runtime_error;
 using std::string;
 using std::stringstream;
 
-runtime_error Listening::handleFdError(const char *errMsg, int fdSock) {
+runtime_error Listening::handleFdError(const char *errMsg, const int fdSock) {
 	if (0 < fdSock)
 		close(fdSock);
 	return runtime_error(string(errMsg) + strerror(errno));
 }
 
 // Public constructors and destructors
-Listening::Listening(int fd, const Server &server,
+Listening::Listening(const int fd, const Server &server,
 					 struct sockaddr_in serverAddr) :
 	ASocket(fd, server, serverAddr) {}
 
@@ -43,8 +43,8 @@ Listening *Listening::create(const Server &server, const Listen &listenSock) {
 	LOG_TITLE("CREATING SOCKET");
 	LOG_SERVER("", server);
 
-	struct sockaddr_in addr = {
-		AF_INET, htons(listenSock.getPort()), {listenSock.getHost()}, {0}};
+	struct sockaddr_in addr
+		= {AF_INET, htons(listenSock.getPort()), {listenSock.getHost()}, {0}};
 
 	int fdSock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 	if (OK <= fdSock)
@@ -53,9 +53,10 @@ Listening *Listening::create(const Server &server, const Listen &listenSock) {
 		throw handleFdError("Error creating listening socket: ", fdSock);
 
 	int enable = 1;
-	if (OK == setNonBlocking(fdSock) &&
-		OK == setsockopt(fdSock, SOL_SOCKET, SO_REUSEADDR, &enable,
-						 sizeof(enable)))
+	if (OK == setNonBlocking(fdSock)
+		&& OK
+			   == setsockopt(fdSock, SOL_SOCKET, SO_REUSEADDR, &enable,
+							 sizeof(enable)))
 		LOG(Logger::LOG, "Set Listening Socket options");
 	else
 		throw handleFdError(
@@ -75,13 +76,16 @@ Listening *Listening::create(const Server &server, const Listen &listenSock) {
 }
 
 Connection *Listening::handleIn() {
-	LOGSOCK(Logger::LOG, "Handel in ", _fd);
+	LOGSOCK(Logger::LOG, "Listening Handel in ", _fd);
 	struct sockaddr_in clientAddr;
 	socklen_t clientAddrLen = sizeof(clientAddr);
 
 	int clientFd = accept(_fd, (sockaddr *)&clientAddr, &clientAddrLen);
-	if (OK > clientFd)
+	if (ERR >= clientFd) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return NULL;
 		throw handleError("Error accepting client: ");
+	}
 
 	setNonBlocking(clientFd);
 	LOGSOCK(Logger::LOG, "Accepted connection on Listening socket", _fd);
@@ -89,5 +93,3 @@ Connection *Listening::handleIn() {
 
 	return new Connection(clientFd, _server, clientAddr);
 }
-
-void Listening::handleOut() {}

@@ -1,8 +1,13 @@
 #include "Connection.hpp"
+#include "ASocket.hpp"
+#include "Logger.hpp"
+#include "Request.hpp"
+#include "Response.hpp"
 #include "Server.hpp"
+#include "exception/Exception.hpp"
 #include "webServ.hpp"
-#include <asm-generic/socket.h>
 #include <cerrno>
+#include <cstddef>
 #include <cstring>
 #include <fstream>
 #include <netinet/in.h>
@@ -10,30 +15,116 @@
 #include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 using std::ifstream;
 using std::runtime_error;
 using std::string;
 
 // Public constructors and destructors
-Connection::Connection(int fd, const Server &server,
+Connection::Connection(const int fd, const Server &server,
 					   struct sockaddr_in serverAddr) :
-	ASocket(fd, server, serverAddr) {}
+	ASocket(fd, server, serverAddr),
+	_responseReceivingBody(NULL),
+	_cur(0),
+	_back(0),
+	_handleInState(REQUEST) {
+	for (size_t i = 0; i < RESPONSES_CUE_SIZE; i++)
+		_responses[i] = NULL;
+}
 
-Connection::~Connection() {}
+Connection::~Connection() {
+	LOGSOCK(Logger::LOG, "Destroying ", _fd);
+	while (_responses[_cur]) {
+		_responses[_cur] = NULL;
+		_cur = (_cur + 1) % RESPONSES_CUE_SIZE;
+	}
+}
+
+ssize_t Connection::recvToBuffer(char *buffer) {
+	ssize_t bytesRead = recv(_fd, buffer, RECV_SIZE, 0);
+
+	if (bytesRead <= ERR && !(errno == EAGAIN || errno == EWOULDBLOCK))
+		throw(runtime_error(TRACED("recv() failure reading from client")
+							+ string(strerror(errno))));
+	if (bytesRead == 0)
+		throw ClientClosed();
+
+	buffer[bytesRead] = '\0';
+	LOG_LABELED(Logger::CONTENT, "RECV buffer: ", buffer);
+	return bytesRead;
+}
 
 // Public Methods
 Connection *Connection::handleIn() {
-	char buffer[CHUNK_SIZE + 1];
-	size_t bitesRead = recv(_fd, buffer, CHUNK_SIZE, 0);
-	buffer[bitesRead] = '\0';
+	LOGSOCK(Logger::LOG, "Connection Handel in", _fd);
 
-	write(1, buffer, bitesRead);
-	write(1, "\n___\n", 5);
+	Request *request = NULL;
+	char buffer[RECV_SIZE + 1];
+	ssize_t bytesRead = 0;
 
-	return NULL;
-};
+	if (!(bytesRead = recvToBuffer(buffer)))
+		return NULL;
+
+	try {
+		switch (_handleInState) {
+		case REQUEST:
+			request = _http.parse(buffer, bytesRead);
+			if (!request)
+				return NULL;
+
+			_responseReceivingBody = _responses[_back];
+			_back = ((_back + 1) % RESPONSES_CUE_SIZE);
+			LOGSOCKNUM(Logger::LOG, "Stored _response on slot ", _back, _fd);
+
+		case INITBODY: // fallthrough
+					   // _handleInState = readBody(true, "[INITBODY]", buffer,
+					   // bytesRead);
+		default:	   // fallthrough
+			return NULL;
+		}
+
+	} catch (runtime_error err) {
+		LOG_ERROR(runtime_error(TRACED(err.what())));
+		throw;
+	}
+}
 
 void Connection::handleOut() {
+	LOGSOCK(Logger::LOG, "Connection Handel out", _fd);
+	try {
+		if (!_responses[_cur]) {
+			LOGSOCK(Logger::WARNING, "handleOut called without response", _fd);
+			return;
+		}
 
-};
+		// bool state = _responses[_cur]->sendResponse(_fd);
+		// LOGSOCK_LABELED(Logger::LOG, "SENT response status ",
+		// 				(state ? "DONE" : "ONGOING"), _fd);
+		// if (DONE == state) {
+		// 	LOGSOCKNUM(Logger::LOG, "DONE: Deleting response idx: ", _cur, _fd);
+		// 	delete _responses[_cur];
+		// 	_responses[_cur] = NULL;
+		// 	_cur = (_cur + 1) % RESPONSES_CUE_SIZE;
+		// }
+	} catch (const runtime_error &err) {
+		LOG_ERROR(err);
+		throw;
+	}
+}
+
+uint32_t Connection::getEventsNextLoop() {
+	uint32_t events = 0;
+	LOGSOCKNUMS2(Logger::LOG, "_responses[i] next Loop cur/back: ", _cur, _back,
+				 _fd);
+	if (_responses[_cur])
+		events |= EPOLLOUT;
+	if (!isFull())
+		events |= EPOLLIN;
+	return events;
+}
+
+bool Connection::isFull() const {
+	int next = (_cur + 1) % RESPONSES_CUE_SIZE;
+	return (_responses[_cur] && _responses[next]);
+}
