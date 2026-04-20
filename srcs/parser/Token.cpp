@@ -1,4 +1,6 @@
 #include "Token.hpp"
+#include "Logger.hpp"
+#include "Server.hpp"
 #include "StrView.hpp"
 #include "webServ.hpp"
 #include <cctype>
@@ -7,13 +9,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <ostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
+using std::cout;
+using std::endl;
 using std::string;
+using std::stringstream;
 using std::strtol;
+using std::vector;
 
 // Public constructors and destructors
 Token::Token(const uchar *table, std::string &parsingString) :
@@ -22,7 +31,8 @@ Token::Token(const uchar *table, std::string &parsingString) :
 	_type(0),
 	_lineN(0),
 	_pendingQuote(false),
-	_strBuffSize(0) {}
+	_strBuffSize(0),
+	_vecBuffConsolidationIndex(0) {}
 
 Token::~Token() {}
 
@@ -50,16 +60,6 @@ const uchar *Token::configDelimiters() {
 	isDelimiter[';'] = SEMICOLON;
 	isDelimiter['\\'] = EXCAPE;
 	isDelimiter['\0'] = ENDOFILE;
-	isDelimiter['0'] = DIGIT;
-	isDelimiter['1'] = DIGIT;
-	isDelimiter['2'] = DIGIT;
-	isDelimiter['3'] = DIGIT;
-	isDelimiter['4'] = DIGIT;
-	isDelimiter['5'] = DIGIT;
-	isDelimiter['6'] = DIGIT;
-	isDelimiter['7'] = DIGIT;
-	isDelimiter['8'] = DIGIT;
-	isDelimiter['9'] = DIGIT;
 	return isDelimiter;
 }
 
@@ -117,8 +117,8 @@ uchar Token::loadNextCore(const bool keepSpaces) {
 		case WORD: // Extract Token
 			_strV.setStart(str);
 			if (keepSpaces)
-				while (WORD == _isDelimiter[(uchar)(*str)] ||
-					   SPACE == _isDelimiter[(uchar)(*str)])
+				while (WORD == _isDelimiter[(uchar)(*str)]
+					   || SPACE == _isDelimiter[(uchar)(*str)])
 					str++;
 			else
 				while (WORD == _isDelimiter[(uchar)(*str)])
@@ -266,13 +266,38 @@ void Token::trackInUseToken(StrView *strV) {
 	_strBuffSize += strV->getLen() + 1;
 }
 
-void Token::consolidateBuffer(string &newBuffer) {
-	newBuffer.reserve(_strBuffSize);
+void Token::printBuffers(stringstream &stream) {
+	stream << "_tokensInUse: ";
+	for (size_t i = 0; i < _tokensInUse.size(); i++)
+		stream << _tokensInUse[i]->getStr() << "\n";
+}
+
+void Token::consolidateStrVSpans(vector<StrView> &vecBuf, string &newStrBuf) {
+	LOG(Logger::LOG, "Consolidating Span Buffer: ");
+
+	size_t i = _vecBuffConsolidationIndex;
+	LOGNUM(Logger::LOG, "_vecBuffConsolidation index: ", i);
+	for (; i < vecBuf.size(); i++)
+		vecBuf[i].move(newStrBuf);
+	_vecBuffConsolidationIndex = vecBuf.size();
+}
+
+void Token::consolidateBuffer(string &newBuf) {
+	LOG(Logger::LOG, "Consolidating StrBuffer: ");
+
 	for (uint i = 0; i < _tokensInUse.size(); i++)
-		_tokensInUse[i]->move(newBuffer);
+		_tokensInUse[i]->move(newBuf);
 	_tokensInUse.clear();
+}
+
+void Token::consolidateBuffers(vector<StrView> &vecBuf, string &newStrBuf) {
+	newStrBuf.reserve(newStrBuf.size() + _strBuffSize);
+	consolidateBuffer(newStrBuf);
+	consolidateStrVSpans(vecBuf, newStrBuf);
 	_strBuffSize = 0;
 }
+
+void Token::resetSpanConsolidationIndex() { _vecBuffConsolidationIndex = 0; }
 
 void Token::LoadParsingString(string &parsingString) {
 	_strV.setBuffer(parsingString);

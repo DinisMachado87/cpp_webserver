@@ -1,4 +1,6 @@
 #include "ConfParser.hpp"
+#include "Location.hpp"
+#include "Logger.hpp"
 #include "Server.hpp"
 #include "StrView.hpp"
 #include "Token.hpp"
@@ -7,15 +9,22 @@
 #include <cctype>
 #include <climits>
 #include <cstddef>
+#include <exception>
+#include <iostream>
 #include <map>
+#include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <stdlib.h>
 #include <string>
 #include <utility>
 #include <vector>
 
+using std::cerr;
+using std::endl;
 using std::map;
 using std::pair;
+using std::runtime_error;
 using std::string;
 using std::vector;
 typedef pair<map<uint, StrView>::iterator, bool> errorVecPair;
@@ -48,7 +57,7 @@ std::runtime_error ConfParser::parsingErr(const char *expected) const {
 
 // Private Methods
 void ConfParser::parseMethod() {
-	uchar method;
+	uchar method = Location::DEFAULT;
 	while (1) {
 		_token.loadNext();
 		switch (_token.getType()) {
@@ -102,17 +111,15 @@ void ConfParser::parseLocationParam() {
 		_expect.path(&_newLocation._rewrite_new);
 	} else if (_token.compare("upload_enable"))
 		_newLocation._uploadEnable = _expect.onOff();
-
 	else if (_token.compare("upload_path"))
 		_expect.path(&_newLocation._uploadPath);
-
 	else if (_token.compare("cgi_extension")) {
-		_newLocation._cgiExtensions =
-			_expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
+		_newLocation._cgiExtensions
+			= _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
 		return;
 	} else if (_token.compare("cgi_path")) {
-		_newLocation._cgiPath =
-			_expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
+		_newLocation._cgiPath
+			= _expect.wordVec(_newServer->_strvVecBuf, _vecCursor);
 		return;
 	} else if (parseOverrides(_newLocation._overrides))
 		return;
@@ -129,11 +136,15 @@ void ConfParser::parseLocation() {
 		_token.loadNext();
 		switch (_token.getType()) {
 		case Token::CLOSEBLOCK:
+			if (_newLocation._cgiExtensions.len()
+				!= _newLocation._cgiPath.len())
+				throw runtime_error("Error parsing location: diferent number "
+									"of cgi extentions and paths");
 			_token.consolidateBuffer(_newServer->_strBuf);
 			_newServer->_locations.push_back(_newLocation);
-			_newLocation =
-				Location(_newServer->_strBuf, _newServer->_strvVecBuf,
-						 &_newServer->_defaults);
+			_newLocation
+				= Location(_newServer->_strBuf, _newServer->_strvVecBuf,
+						   &_newServer->_defaults);
 			return;
 		case Token::WORD:
 			parseLocationParam();
@@ -145,6 +156,7 @@ void ConfParser::parseLocation() {
 }
 
 void ConfParser::parseServerLine() {
+	LOG(Logger::LOG, "Parsing location");
 	if (_token.compare("listen")) {
 		_token.loadNextOfType(Token::WORD, "listen address");
 
@@ -169,6 +181,7 @@ void ConfParser::parseServerLine() {
 }
 
 void ConfParser::nextServer() {
+	LOG_TITLE("Parsing new server");
 	while (1) {
 		switch (_token.loadNext()) {
 		case Token::WORD:
@@ -178,9 +191,12 @@ void ConfParser::nextServer() {
 				parseServerLine();
 			continue;
 		case Token::CLOSEBLOCK:
-			_token.consolidateBuffer(_newServer->_strBuf);
+			_token.consolidateBuffers(_newServer->_strvVecBuf,
+									  _newServer->_strBuf);
 			_servers.push_back(_newServer);
 			_newServer = new Server();
+			_vecCursor = 0;
+			_token.resetSpanConsolidationIndex();
 			return;
 		default:
 			throw parsingErr("Unexpected token");
@@ -199,6 +215,7 @@ void ConfParser::createServers() {
 				throw parsingErr("\"server\"");
 			break;
 		case Token::ENDOFILE:
+			LOG(Logger::LOG, "Done Parsing");
 			return;
 		default:
 			throw parsingErr("{");

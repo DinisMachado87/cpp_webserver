@@ -1,39 +1,38 @@
-#include "Connection.hpp"
-#include "webServ.hpp"
 #include "Engine.hpp"
 #include "ASocket.hpp"
 #include "ConfParser.hpp"
+#include "Connection.hpp"
 #include "Listening.hpp"
+#include "Logger.hpp"
+#include "exception/Exception.hpp"
+#include "webServ.hpp"
 #include <bits/types/error_t.h>
 #include <cerrno>
-#include <iostream>
-#include <ostream>
-#include <stdint.h>
 #include <cstring>
 #include <map>
 #include <netinet/in.h>
 #include <stdexcept>
+#include <stdint.h>
 #include <string>
 #include <sys/epoll.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
-using std::runtime_error;
 using std::map;
-using std::vector;
+using std::runtime_error;
 using std::string;
-using std::cerr;
-using std::endl;
+using std::stringstream;
+using std::vector;
 
 // Public constructors and destructors
-Engine::Engine():
-	_fdEpoll(-1)
-{
+Engine::Engine() :
+	_fdEpoll(-1) {
 	epoll_init();
 }
 
 Engine::~Engine() {
-	map<int, ASocket*>::iterator socket = _sockets.begin();
+	map<int, ASocket *>::iterator socket = _sockets.begin();
 	while (socket != _sockets.end())
 		delete (socket++)->second;
 
@@ -46,65 +45,72 @@ Engine::~Engine() {
 }
 
 // Error handeling
-runtime_error	Engine::handleError(const string errMsg) {
-	return runtime_error( errMsg + strerror(errno));
+runtime_error Engine::handleError(const string errMsg, const int err) {
+	return runtime_error(errMsg + " :" + strerror(err));
 }
 
 // Public Methods
 void Engine::epoll_init() {
 	_fdEpoll = epoll_create(1);
 	if (_fdEpoll < 0)
-		throw handleError("Error Epoll_create: ");
+		throw handleError("Error Epoll_create: ", errno);
 }
 
-ASocket* Engine::getSocket(int fd) {
-	map<int, ASocket*>::iterator socket = _sockets.find(fd);
+ASocket *Engine::getSocket(int fd) {
+	map<int, ASocket *>::iterator socket = _sockets.find(fd);
 	if (socket != _sockets.end())
 		return socket->second;
 	return NULL;
 }
 
-void	Engine::setEventTo(int epollFd, uint operation, uint eventType, int socketFd, void *ptrToSock) {
+void Engine::setEventTo(int epollFd, uint operation, uint eventType,
+						int socketFd, ASocket *socket) {
 	struct epoll_event event;
 	event.events = eventType;
-	event.data.ptr = ptrToSock;
+	event.data.ptr = socket;
 	if (OK == epoll_ctl(epollFd, operation, socketFd, &event))
 		return;
-	throw handleError("Error setting epoll socket event type: ");
+	throw handleError(TRACED("Epool_ctr"), errno);
 }
 
-void Engine::addSocket(ASocket* socket) {
+void Engine::addSocket(ASocket *socket) {
 	if (!socket)
-		throw handleError("Error null socket");
+		throw handleError("Error null socket", errno);
 
 	int fd = socket->getFd();
-	if (socket && fd > 0) {
-		_sockets[fd] = socket;
-		setEventTo(_fdEpoll , EPOLL_CTL_ADD, EPOLLIN, fd, socket->getPtrToSelf());
-	}
-	else throw handleError("Error adding socket");
+	if (!socket || fd < 0)
+		throw handleError("Error adding socket", errno);
+
+	_sockets[fd] = socket;
+	setEventTo(_fdEpoll, EPOLL_CTL_ADD, socket->trackCurEvents(EPOLLIN), fd,
+			   socket);
 }
 
-void Engine::deleteSocket(int fd) {
-	map<int, ASocket*>::iterator socket = _sockets.find(fd);
-	if (socket != _sockets.end()) {
-		setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket->second->getPtrToSelf());
-		delete socket->second;
-		_sockets.erase(socket);
+void Engine::deleteSocket(ASocket *socket) {
+	int fd = socket->getFd();
+	try {
+		setEventTo(_fdEpoll, EPOLL_CTL_DEL, 0, fd, socket);
+		_sockets.erase(fd);
+		delete socket;
+		LOGSOCK(Logger::LOG, "Deleted socket", fd);
+	} catch (runtime_error &err) {
+		throw runtime_error(TRACED(err.what()));
 	}
 }
 
-void Engine::buildServers(string& config) {
+void Engine::buildServers(string &config) {
 	ConfParser parser(config, _servers);
 	parser.createServers();
 }
 
 void Engine::createSockets() {
 	vector<Server *>::iterator server = _servers.begin();
-	while (server != _servers.end()) {
+	vector<Server *>::iterator end = _servers.end();
+
+	while (server != end) {
 		vector<Listen>::iterator port = (*server)->_listen.begin();
 		while (port != (*server)->_listen.end()) {
-			Listening* socket = Listening::create(**server, *port);
+			Listening *socket = Listening::create(**server, *port);
 			addSocket(socket);
 			port++;
 		}
@@ -112,45 +118,86 @@ void Engine::createSockets() {
 	}
 }
 
-void Engine::pollLoop() {
-	struct	epoll_event events[MAX_EVENTS];
-	int		nfds = -1;
-	Connection *newConnection = NULL;
+void Engine::logFlagUpdates(ASocket *socket, uint32_t events,
+							uint32_t newEvents) {
+	stringstream stream;
+	bool newEventsIn = newEvents & EPOLLIN;
+	bool newEventsOut = newEvents & EPOLLOUT;
+	bool EventsIn = events & EPOLLIN;
+	bool EventsOut = events & EPOLLOUT;
+	if (!newEventsIn && EventsIn)
+		LOGSOCK(Logger::LOG, "Removing EPOLLIN\n", socket->getFd());
+	else if (newEventsIn && !EventsIn)
+		LOGSOCK(Logger::LOG, "Adding EPOLLIN\n", socket->getFd());
+	if (!newEventsOut && EventsOut)
+		LOGSOCK(Logger::LOG, "Removing EPOLLOUT\n", socket->getFd());
+	else if (newEventsOut && !EventsOut)
+		LOGSOCK(Logger::LOG, "Adding EPOLLOUT\n", socket->getFd());
+}
 
-	while (true) {
-		newConnection = NULL;
-		nfds = epoll_wait(_fdEpoll, events, MAX_EVENTS, TIMEOUT);
-		if (ERR == nfds) {
+void Engine::updateFlags(ASocket *socket) {
+	uint32_t events = socket->getCurEvents();
+	uint32_t newEvents = socket->getEventsNextLoop();
+
+	LOGEVENTS(socket, events, newEvents);
+	if (newEvents != events) {
+		socket->trackCurEvents(newEvents);
+		setEventTo(_fdEpoll, EPOLL_CTL_MOD, newEvents, socket->getFd(), socket);
+	}
+}
+
+void Engine::pollLoop() {
+	struct epoll_event events[MAX_EVENTS];
+	int nFds = -1;
+
+	while (!g_shutdown) {
+		nFds = -1;
+		usleep(100000);
+		nFds = epoll_wait(_fdEpoll, events, MAX_EVENTS, TIMEOUT);
+		if (ERR == nFds) {
 			if (errno == EINTR)
 				continue;
-			handleError("Epoll_wait error: ");
+			throw handleError(TRACED("Epoll_wait: "), errno);
 		}
 
-		for (int i = 0; i < nfds; i++) {
-			ASocket*	socket = static_cast<ASocket*>(events[i].data.ptr);
-			uint32_t	ev = events[i].events;
+		for (int i = 0; i < nFds && !g_shutdown; i++) {
+			ASocket *socket = static_cast<ASocket *>(events[i].data.ptr);
+			uint32_t ev = events[i].events;
+			try {
+				if (ev & EPOLLERR)
+					throw runtime_error(TRACED("EpollWait")
+										+ string(strerror(errno)));
+				if (ev & EPOLLHUP)
+					throw ClientClosed();
+				if (ev & EPOLLIN) {
+					while (Connection *connection = socket->handleIn())
+						if (connection)
+							addSocket(connection);
+				}
+				if (ev & EPOLLOUT) {
+					LOG(Logger::LOG, "Received EPOLLOUT");
+					socket->handleOut();
+				}
 
-			if (ev & (EPOLLERR | EPOLLHUP)) {
-				delete socket;
-				continue;
+				updateFlags(socket);
+
+			} catch (const ClientClosed &ex) {
+				LOGSOCK(Logger::LOG, ex.what(), socket->getFd());
+				deleteSocket(socket);
+			} catch (const runtime_error &err) {
+				LOG_ERROR_LABELED("Handeling socket event", err);
+				deleteSocket(socket);
 			}
-			if (ev & EPOLLIN) {
-				newConnection = socket->handleIn();
-				if (newConnection)
-					addSocket(newConnection);
-			}
-			if (ev & EPOLLOUT)
-				socket->handleOut();
 		}
 	}
 }
 
-void Engine::run(string& config) {
+void Engine::run(string &config) {
 	try {
 		buildServers(config);
 		createSockets();
 		pollLoop();
-	} catch (error_t err) {
-		cerr << err << endl;
+	} catch (runtime_error err) {
+		LOG_ERROR(err);
 	}
 }
