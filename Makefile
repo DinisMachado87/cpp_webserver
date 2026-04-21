@@ -40,7 +40,13 @@ endef
 
 # Build SRCS_CORE and SRCS_TEST_CORE dynamically from groups
 SRCS_CORE		:= $(foreach group,$(SRC_GROUPS),$(call make_paths,$($(group))))
-SRCS_TEST_CORE	:= $(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group))))
+
+# If FILTER_ARG is provided, only include matching test files
+ifdef FILTER_ARG
+	SRCS_TEST_CORE	:= $(filter %/test_$(FILTER_ARG).cpp,$(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group)))))
+else
+	SRCS_TEST_CORE	:= $(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group))))
+endif
 
 # Extract module directories from source groups
 MODULES			:= $(foreach group,$(SRC_GROUPS),$(word 1,$($(group)))) $(ENGINE_DIR) $(UTILS_DIR) $(SOCKETS_DIR) $(LOGGER_DIR)
