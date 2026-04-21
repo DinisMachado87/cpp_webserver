@@ -79,9 +79,8 @@ void Logger::print(const int level, stringstream &stream) {
 		else
 			cout << str << endl;
 	}
-	if (LOGTOFILE) {
+	if (LOGTOFILE)
 		_logFile << str << endl;
-	}
 }
 
 void Logger::addHost(stringstream &stream, in_addr_t host) {
@@ -117,9 +116,9 @@ void Logger::buildLogPrefix(stringstream &stream, const int level,
 		stream << " | Socket: " << socket;
 	if (host != INT_MAX)
 		addHost(stream, host);
+	stream << SEPARATOR;
 	if (level == CONTENT)
 		stream << '\n';
-	stream << SEPARATOR;
 }
 
 void Logger::appendMessage(stringstream &stream, const char *msg, size_t len) {
@@ -137,7 +136,6 @@ void Logger::log(const int level, const char *label, const char *msg,
 	stringstream stream;
 	buildLogPrefix(stream, level, label, socket, host);
 	appendMessage(stream, msg, len);
-
 	if (num != NONUM)
 		stream << num;
 
@@ -174,7 +172,6 @@ void Logger::logTitle(const char *msg) {
 string Logger::traced(const char *msg, const char *file, const int line,
 					  const char *func) {
 	stringstream str;
-
 	str << file << ": " << line << " | " << func << "():\n\t " << msg;
 	return str.str();
 }
@@ -182,6 +179,7 @@ string Logger::traced(const char *msg, const char *file, const int line,
 void Logger::logServer(const char *msg, const Server &server) {
 	if (CONTENT > _level)
 		return;
+
 	stringstream stream;
 	stream << msg << '\n';
 	server.getServerStr(stream);

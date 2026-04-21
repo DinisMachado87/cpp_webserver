@@ -47,6 +47,25 @@ public:
 	void logTitle(const char *msg);
 	void logServer(const char *msg, const Server &server);
 
+	template <typename T>
+	void logObj(const char *msg, const T *obj,
+				void (T::*method)(std::stringstream &) const) {
+		if (CONTENT > _level)
+			return;
+		std::stringstream stream;
+		stream << msg << '\n';
+		(obj->*method)(stream);
+		print(CONTENT, stream);
+	}
+
+	template <typename T> void logObj(const char *msg, const T *obj) {
+		if (CONTENT > _level)
+			return;
+		std::stringstream stream;
+		stream << msg << '\n' << *obj;
+		print(CONTENT, stream);
+	}
+
 private:
 	e_logLevel _level;
 	Clock _clock;
@@ -126,6 +145,7 @@ private:
 // special
 #define LOG_TITLE(msg) Logger::logger()->logTitle(msg)
 #define LOG_SERVER(msg, server) Logger::logger()->logServer(msg, server)
+#define LOG_OBJ(msg, obj) Logger::logger()->logObj(msg, obj)
 #define TRACED(msg)                                                            \
 	Logger::logger()->traced(msg, __FILE__, __LINE__, __FUNCTION__)
 
