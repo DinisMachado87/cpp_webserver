@@ -20,7 +20,7 @@ private:
 	bool _http1_1;
 
 	std::map<StrView, StrView> _headers;
-	std::string _body;
+	StrView _body;
 
 	friend class HttpParser;
 
@@ -34,15 +34,17 @@ public:
 	Request &operator=(const Request &other);
 
 	// Methods
-	const char *safeStr(const char *str) const;
-	const std::string &getBody() const;
-	void print(std::stringstream &stream) const;
+	const char *getMethodStr() const;
+	void print(std::ostream &stream) const;
 
 	// Getters and setters
 	const StrView *getHeaderValue(const char *charKey) const;
 	const StrView *getHeaderValue(StrView &key) const;
 	const StrView &getPath() const;
 	uchar getMethod() const;
+	const StrView &getBody() const;
 };
+
+std::ostream &operator<<(std::ostream &os, const Request &req);
 
 #endif

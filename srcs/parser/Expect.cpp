@@ -39,11 +39,10 @@ std::runtime_error Expect::parsingErr(const char *expected) const {
 
 // Public Methods
 uchar Expect::method() {
-	static const char *methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
 	static const uchar size = 4;
 
 	for (int i = 1; i < size; i++)
-		if (true == _token.compare(methods[i]))
+		if (true == _token.compare(g_methods[i]))
 			return (i);
 	return Location::DEFAULT;
 }
@@ -94,8 +93,8 @@ void Expect::errorPage(map<uint, StrView> &errorMap, string &strBuf) {
 	// insert() returns pair<iterator, bool> where:
 	//   .first  = iterator pointing to the element (inserted or existing)
 	//   .second = true if inserted, false if key already existed
-	pair<map<uint, StrView>::iterator, bool> insertResult =
-		errorMap.insert(placeholderEntry);
+	pair<map<uint, StrView>::iterator, bool> insertResult
+		= errorMap.insert(placeholderEntry);
 
 	// Get pointer to the StrView now stored in the map
 	map<uint, StrView>::iterator errorIter = insertResult.first;
@@ -217,8 +216,8 @@ in_addr_t Expect::ip(string &ipStr) {
 	for (size_t i = 0; i < nOctets; i++) {
 		size_t dotPos = (i < 3) ? ipStr.find('.', start) : ipStr.length();
 
-		if (dotPos == string::npos ||
-			dotPos == start) // npos == not found/no position
+		if (dotPos == string::npos
+			|| dotPos == start) // npos == not found/no position
 			throw parsingErr("Invalid IP address");
 
 		string octetStr = ipStr.substr(start, dotPos - start);

@@ -1,12 +1,11 @@
 #include "HttpParser.hpp"
+#include "Logger.hpp"
 #include "Request.hpp"
 #include "StrView.hpp"
 #include "Token.hpp"
 #include "webServ.hpp"
 #include <cstddef>
 #include <cstdlib>
-#include <iostream>
-#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
@@ -15,6 +14,12 @@
 using std::make_pair;
 using std::runtime_error;
 using std::string;
+
+const char *g_methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
+
+const char *const HttpParser::bodyLabels[8]
+	= {"REQUEST_LINE",	"HEADERS",		"BODY",	   "SET_CHUNK_SIZE",
+	   "SET_BODY_SIZE", "CHUNKED_BODY", "NO_BODY", "RETURN"};
 
 const uchar *HttpParser::delimiters() {
 	static uchar isDelimiter[256] = {0};
@@ -110,7 +115,7 @@ void HttpParser::parseHeaders() {
 void HttpParser::setBodySize() {
 	const StrView *bodyType = _request->getHeaderValue("Transfer-Encoding");
 	if (bodyType && bodyType->compare("chunked")) {
-		_state = CHUNKED_BODY;
+		_state = SET_CHUNK_SIZE;
 		return;
 	}
 
@@ -118,8 +123,6 @@ void HttpParser::setBodySize() {
 	if (bodyType) {
 		string size = bodyType->getStr();
 		_nextBodySection = atoll(size.c_str());
-		size_t headerSize = _token.getEnd() - _token.getStart();
-		_request->_headerBuff.reserve(headerSize + _nextBodySection);
 		_state = BODY;
 		return;
 	}
@@ -165,6 +168,8 @@ Request *HttpParser::parse(const char *inBuff, size_t size) {
 			continue;
 		case (SET_BODY_SIZE):
 			setBodySize();
+			LOGNUM_LABELED(Logger::LOG, "Body mode set to ", bodyLabels[_state],
+						   _state);
 			continue;
 		case (BODY):
 			if (_token.getSizeLeft() < _nextBodySection) {

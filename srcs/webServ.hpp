@@ -2,8 +2,6 @@
 #define WEBSERV_HPP
 
 #include <csignal>
-#include <sstream>
-#include <string>
 #define VERBOSE 1
 // Unix return code
 #define OK 0
@@ -22,6 +20,7 @@
 #define LOGGING true
 #define LOGTOCLI true
 #define LOGTOFILE true
+#define NONUM -2
 
 // HTTP Parser Limits
 #define MAX_HEADER_SIZE 8192
@@ -31,5 +30,7 @@ typedef unsigned int uint;
 typedef unsigned char uchar;
 
 extern volatile sig_atomic_t g_shutdown;
+
+extern const char *g_methods[];
 
 #endif

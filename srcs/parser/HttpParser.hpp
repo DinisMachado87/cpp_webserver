@@ -8,16 +8,18 @@
 #include <vector>
 
 #define BUFFER_SIZE 1024
+#define NEEDS_MORE_INPUT true
 
 class HttpParser {
 private:
+	static const char *const bodyLabels[8];
+
 	enum state {
-		NEEDS_MORE_INPUT,
 		REQUEST_LINE,
 		HEADERS,
-		SET_BODY_SIZE,
 		BODY,
 		SET_CHUNK_SIZE,
+		SET_BODY_SIZE,
 		CHUNKED_BODY,
 		NO_BODY,
 		RETURN

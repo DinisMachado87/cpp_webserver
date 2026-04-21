@@ -1,6 +1,7 @@
 #include "Request.hpp"
 #include "Location.hpp"
 #include "StrView.hpp"
+#include "webServ.hpp"
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -8,7 +9,6 @@
 #include <sstream>
 #include <string>
 
-using std::cout;
 using std::map;
 using std::string;
 using std::stringstream;
@@ -27,7 +27,11 @@ Request::Request() :
 Request::~Request() {}
 
 // Public Methods
+
 uchar Request::getMethod() const { return _method; };
+
+const char *Request::getMethodStr() const { return g_methods[_method]; };
+
 const StrView &Request::getPath() const { return _path; };
 
 const StrView *Request::getHeaderValue(StrView &key) const {
@@ -43,21 +47,20 @@ const StrView *Request::getHeaderValue(const char *charKey) const {
 	return (getHeaderValue(strViewKey));
 }
 
-const char *Request::safeStr(const char *str) const {
-	return str ? str : "NULL";
-}
-
-void Request::print(stringstream &stream) const {
-	stream << "Method: " << _method;
-	stream << " | Path: '" << safeStr(_path.getStart()) << "'|'"
-		   << safeStr(_query.getStart()) << "'|'"
-		   << safeStr(_fragment.getStart()) << "'"
-		   << "\n";
+void Request::print(std::ostream &stream) const {
+	stream << "Method: " << getMethodStr();
+	stream << " | Path: '" << _path << "'|'" << _query << "'|'" << _fragment
+		   << "'\n";
 
 	map<StrView, StrView>::const_iterator header = _headers.begin();
-	for (; header != _headers.end(); header++)
-		stream << safeStr(header->first.getStart()) << ": "
-			   << safeStr(header->second.getStart()) << "\n";
+	for (; header != _headers.end(); header++) {
+		stream << header->first << ": " << header->second << "\n";
+	}
 }
 
-const string &Request::getBody() const { return _body; }
+std::ostream &operator<<(std::ostream &os, const Request &req) {
+	req.print(os);
+	return os;
+}
+
+const StrView &Request::getBody() const { return _body; }
