@@ -4,11 +4,14 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <unistd.h>
 
+using std::ostream;
 using std::string;
+using std::stringstream;
 
 // Public constructors and destructors
 StrView::StrView(std::string &buffer, const int offset, const uchar len) :
@@ -119,6 +122,11 @@ void StrView::move(std::string &toBuffer) {
 	_offset = offset;
 }
 
-void StrView::streamStrView(std::stringstream &stream) {
+void StrView::streamStrView(stringstream &stream) {
 	stream << getStr() << &_rawBuffer << _len << _offset;
+}
+
+void StrView::intoStream(ostream &stream) const {
+	const char *str = getStart();
+	str ? stream.write(str, getLen()) : stream << "NULL";
 }

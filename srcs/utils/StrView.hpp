@@ -2,6 +2,7 @@
 #define STRVIEW_HPP
 
 #include "webServ.hpp"
+#include <ostream>
 #include <string>
 
 class StrView {
@@ -34,6 +35,7 @@ public:
 	void setLen(uint len);
 	void setStartAndLen(const char *start, uint len);
 	// Methods
+	void intoStream(std::ostream &stream) const;
 	void streamStrV(std::stringstream &stream) const;
 	void streamBuffer(std::stringstream &stream) const;
 	void streamStrView(std::stringstream &stream);
@@ -52,5 +54,9 @@ public:
 // Out of class operators for reverse comparison
 inline bool operator==(const char *str, const StrView &sv) { return sv == str; }
 inline bool operator!=(const char *str, const StrView &sv) { return sv != str; }
+inline std::ostream &operator<<(std::ostream &os, const StrView &strv) {
+	strv.intoStream(os);
+	return os;
+}
 
 #endif
