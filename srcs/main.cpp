@@ -14,8 +14,6 @@ using std::runtime_error;
 using std::string;
 using std::stringstream;
 
-volatile sig_atomic_t g_shutdown = 0;
-
 static string readFile(const char *filepath) {
 	ifstream file(filepath);
 

@@ -12,6 +12,8 @@ using std::runtime_error;
 using std::string;
 using std::stringstream;
 
+volatile sig_atomic_t g_shutdown = 0;
+
 runtime_error runtimeErrno(const int errNumber, const char *errMsg) {
 	string errorString = errMsg;
 	errorString.append(strerror(errNumber));
