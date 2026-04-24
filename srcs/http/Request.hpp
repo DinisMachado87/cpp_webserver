@@ -11,15 +11,15 @@ class Request {
 private:
 	std::string _headerBuff;
 
-	uint _method;
-
 	StrView _path;
 	StrView _query;
 	StrView _fragment;
 
+	uchar _method;
 	bool _http1_1;
 
 	std::map<StrView, StrView> _headers;
+
 	StrView _body;
 
 	friend class HttpParser;

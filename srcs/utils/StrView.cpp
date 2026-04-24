@@ -1,21 +1,33 @@
 #include "StrView.hpp"
+#include "Colors.hpp"
 #include "Logger.hpp"
 #include "webServ.hpp"
+#include <climits>
 #include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
+#include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 using std::ostream;
+using std::runtime_error;
 using std::string;
 using std::stringstream;
+using std::vector;
 
 // Public constructors and destructors
-StrView::StrView(std::string &buffer, const int offset, const uchar len) :
+StrView::StrView(std::string &buffer, const uint offset, const uint len) :
 	_rawBuffer(&buffer),
+	_offset(offset),
+	_len(len) {}
+
+StrView::StrView(std::string *buffer, const uint offset, const uint len) :
+	_rawBuffer(&(*buffer)),
 	_offset(offset),
 	_len(len) {}
 
@@ -122,11 +134,110 @@ void StrView::move(std::string &toBuffer) {
 	_offset = offset;
 }
 
-void StrView::streamStrView(stringstream &stream) {
-	stream << getStr() << &_rawBuffer << _len << _offset;
+void StrView::replace(const uint startOffset, const StrView &toInsert) {
+	uint insertStart = _offset + startOffset;
+	_rawBuffer->replace(insertStart, toInsert.getLen(), toInsert.getStart());
+}
+
+void StrView::nreplace(const uint startOffset, const StrView &toInsert,
+					   const uint len) {
+	uint insertStart = _offset + startOffset;
+	_rawBuffer->replace(insertStart, len, toInsert.getStart());
+}
+
+const char *StrView::has(const char *color, const bool hasColor) const {
+	return (hasColor ? color : "");
+}
+
+void StrView::info(ostream &ostream, const char item, const char *color) const {
+	const bool s = (item == 's');				   // [s]tring
+	const bool p = (item == 'a') || (item == 'p'); // [a]ll || buffer [p]ointer
+	const bool l = (item == 'a') || (item == 'l'); // [a]ll || [l]ength
+	const bool o = (item == 'a') || (item == 'o'); // [a]ll || [o]ffset
+
+	ostream << (s ? color : YELLOW) << getStr() << RESET << " |";
+
+	ostream << has(color, p) << " pt:" << std::hex
+			<< (reinterpret_cast<size_t>(_rawBuffer) & 0xFF) << std::dec
+			<< has(RESET, p);
+
+	ostream << has(color, l) << " l:" << _len << has(RESET, l);
+	ostream << has(color, o) << " o:" << _offset << has(RESET, o);
+}
+
+void StrView::streamStrView(stringstream &ostream) {
+	ostream << getStr();
+	ostream << "|buf:" << &_rawBuffer << "|len:" << _len << "|off:" << _offset;
 }
 
 void StrView::intoStream(ostream &stream) const {
 	const char *str = getStart();
 	str ? stream.write(str, getLen()) : stream << "NULL";
+}
+
+size_t StrView::findPosInBuffer(const char c, const size_t addedOffset) const {
+	return _rawBuffer->find(c, _offset + addedOffset);
+}
+
+size_t StrView::find(const char c, const size_t addedOffset) const {
+	if (_len <= addedOffset)
+		return string::npos;
+
+	size_t posInBuff = findPosInBuffer(c, addedOffset);
+	size_t posInStrView;
+
+	if (posInBuff == string::npos || posInBuff >= (_offset + _len))
+		return string::npos;
+
+	posInStrView = posInBuff - _offset;
+	if (posInStrView > UINT_MAX)
+		throw runtime_error(
+			TRACED("uint overflow. StrView uses uint for memory lightness"));
+
+	return posInStrView;
+}
+
+/*
+ * splits a StrView into a StrView vector keeping the separator and spliting
+ * before it. Ex. /path/to/somewhere = {"/path", "/to", "/somewhere"}
+ * */
+vector<StrView> StrView::splitPath() {
+	vector<StrView> splitVec;
+
+	uint curOffset = 0;
+	size_t nextDivider = find('/', 1);
+
+	StrView cur = *this;
+
+	while (nextDivider != string::npos) {
+		if (nextDivider > UINT_MAX)
+			throw runtime_error(TRACED("uint overflow"));
+
+		uint segLen = static_cast<uint>(nextDivider) - curOffset;
+		cur = StrView(_rawBuffer, _offset + curOffset, segLen);
+
+		const bool onlySlash
+			= ((cur.getLen() == 1 && cur.ncompare("/", 1))
+			   || (cur.getLen() == 2 && cur.ncompare("/.", 2)));
+
+		if (onlySlash) {
+			nextDivider = find('/', curOffset + 1);
+			if (string::npos == nextDivider) { // only pushes back '/' if last
+				cur.setLen(1);				   // if '/.' truncates to '/'
+				splitVec.push_back(cur);
+				return splitVec;
+			}
+			// implicit - doesn't push back '/' and '/.' if not last segment
+		} else
+			splitVec.push_back(cur);
+
+		curOffset = static_cast<uint>(nextDivider);
+		nextDivider = find('/', curOffset + 1);
+	}
+
+	if (curOffset < _len) {
+		splitVec.push_back(
+			StrView(_rawBuffer, _offset + curOffset, _len - curOffset));
+	}
+	return splitVec;
 }

@@ -1,4 +1,6 @@
 #include "Expect.hpp"
+#include "Colors.hpp"
+#include "Logger.hpp"
 #include "Server.hpp"
 #include "StrView.hpp"
 #include "Token.hpp"
@@ -8,17 +10,23 @@
 #include <climits>
 #include <cstddef>
 #include <cstdlib>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <netinet/in.h>
+#include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
+#include <sys/types.h>
 #include <utility>
 #include <vector>
 
 using std::map;
 using std::pair;
+using std::runtime_error;
 using std::string;
+using std::vector;
 
 // Public constructors and destructors
 Expect::Expect(Token &token) :
@@ -118,6 +126,108 @@ void Expect::paths(StrView *paths, int n) {
 	for (int i = 0; i < n; i++) {
 		path(&paths[i]);
 	}
+}
+
+uint Expect::findNextDivider(StrView &view) {
+	uint newLen = view.getLen();
+	if (1 >= newLen)
+		return newLen;
+
+	size_t nextDivider = view.find('/', 1);
+	newLen = (nextDivider == string::npos) ? view.getLen()
+										   : static_cast<uint>(nextDivider);
+	return newLen;
+}
+
+void Expect::printPathSegs(vector<StrView> &segments, uint i, uint writeIdx,
+						   uint deletedSegs) {
+	uint len = segments.size() - deletedSegs;
+
+	for (size_t j = 0; j < segments.size(); j++) {
+		const bool wi = (j == writeIdx);
+		const bool cur = (j == i);
+		const char *color = (wi ? RED : cur ? GREEN : "");
+		const char *reset = ((wi || cur) ? RESET : "");
+
+		std::cout << color << ((wi || cur) ? "[" : " ") << reset;
+		std::cout << segments[j];
+		std::cout << color << ((wi || cur) ? "]" : " ") << reset;
+
+		((j + 1) == len ? std::cout << YELLOW << " | " << RESET
+						: std::cout << "   ");
+	}
+	std::cout << " |len: " << len << std::endl;
+}
+
+void Expect::consolidatedPath(StrView *destPath) {
+	path(destPath);
+	if (!destPath || destPath->getLen() <= 1)
+		return;
+
+	vector<StrView> segments = destPath->splitPath();
+	if (segments.empty())
+		return;
+
+	size_t writeIdx = 0;
+	DEBUG(uint deletedSegs = 0;);
+
+	bool hasChanges = false;
+	for (size_t i = 0; i < segments.size(); i++) {
+		StrView seg = segments[i];
+
+		DEBUG(std::cout << "\nbefore: ";);
+		DEBUG(printPathSegs(segments, i, writeIdx, deletedSegs););
+
+		bool isLastSegment = (i == (segments.size() - 1));
+		if (isLastSegment && seg.getLen() == 2 && seg.ncompare("/.", 2))
+			DEBUG(std::cout << "SKIP - not advance writeidx for next loop\n";);
+
+		else if (seg.getLen() == 3 && seg.ncompare("/..", 3)) {
+			// Parent directory - go back
+			if (writeIdx <= 0)
+				throw runtime_error("Path contains negative level");
+			writeIdx--;
+
+			DEBUG(deletedSegs++;);
+			DEBUG(std::cout << "GO BACK: " << '\n';);
+		} else {
+			// Normal path - keep it
+			if (writeIdx != i)
+				segments[writeIdx].setStartAndLen(segments[i].getStart(),
+												  segments[i].getLen());
+			writeIdx++;
+			DEBUG(std::cout << "NORMAL path - keep it = copy to write idx  "
+							<< '\n';);
+		}
+		if (writeIdx != i)
+			hasChanges = true;
+
+		//
+		DEBUG(std::cout << "after:  ";);
+		DEBUG(printPathSegs(segments, i, writeIdx, deletedSegs););
+	}
+
+	if (writeIdx == 0) {
+		destPath->setLen(1);
+		DEBUG(std::cout << '\n' << *destPath << " | after" << std::endl;);
+		return;
+	}
+
+	if (!hasChanges)
+		return;
+
+	std::string newPathStr;
+	newPathStr.reserve(destPath->getLen());
+
+	for (size_t i = 0; i < writeIdx; i++)
+		newPathStr.append(segments[i].getStart(), segments[i].getLen());
+
+	destPath->nreplace(0, StrView(newPathStr), newPathStr.size());
+	destPath->setLen(newPathStr.size());
+
+	DEBUG(std::cout << "\nCOPYING:\n" << newPathStr << " | temp str" << '\n';);
+	DEBUG(std::cout << *destPath << " | before" << '\n';);
+	DEBUG(std::cout << *destPath << " | after" << std::endl;);
 }
 
 size_t Expect::applySizeUnit(size_t value, char unit) {

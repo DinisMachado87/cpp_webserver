@@ -1,4 +1,5 @@
 #include "HttpParser.hpp"
+#include "Location.hpp"
 #include "Logger.hpp"
 #include "Request.hpp"
 #include "StrView.hpp"
@@ -10,16 +11,19 @@
 #include <string>
 #include <sys/socket.h>
 #include <utility>
+#include <vector>
 
 using std::make_pair;
 using std::runtime_error;
 using std::string;
+using std::vector;
 
 const char *g_methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
 
-const char *const HttpParser::bodyLabels[8]
-	= {"REQUEST_LINE",	"HEADERS",		"BODY",	   "SET_CHUNK_SIZE",
-	   "SET_BODY_SIZE", "CHUNKED_BODY", "NO_BODY", "RETURN"};
+const char *const HttpParser::bodyLabels[STATE_SIZE]
+	= {"REQUEST_LINE",		  "HEADERS",	   "VALIDATE",	   "BODY",
+	   "SET_CHUNK_SIZE",	  "SET_BODY_SIZE", "CHUNKED_BODY", "NO_BODY",
+	   "MAKE_ERROR_RESPONSE", "RETURN"};
 
 const uchar *HttpParser::delimiters() {
 	static uchar isDelimiter[256] = {0};
@@ -41,7 +45,8 @@ HttpParser::HttpParser() :
 	_needsMoreInput(false),
 	_toGetChunk(false),
 	_token(delimiters(), _request->_headerBuff),
-	_expect(_token) {}
+	_expect(_token),
+	_status(200) {}
 
 HttpParser::~HttpParser() {}
 
@@ -50,8 +55,8 @@ uchar HttpParser::handleNewline() {
 	_token.loadNextOfType(Token::NEWLINE, "NEWLINE");
 
 	if (_token.compare("\r\n\r\n")) {
-		_state = RETURN;
-		return RETURN;
+		_state = VALIDATE;
+		return VALIDATE;
 	} else if (_token.compare("\r\n"))
 		return NEEDS_MORE_INPUT;
 
@@ -74,19 +79,49 @@ void HttpParser::receive(int fd) {
 }
 
 void HttpParser::parseRequestLine() {
-	_token.loadNext();
-	_request->_method = _expect.method();
+	try {
+		_token.loadNextOfType(Token::WORD, "Http Method");
+		const uchar method = _expect.method();
+		if (Location::DEFAULT == method)
+			return setError(400, "Http method non existent. ");
+		_request->_method = method;
 
-	_expect.path(&_request->_path);
+		_expect.path(&_request->_path);
 
-	_token.loadNext();
-	if (!_token.compare("HTTP/1.1") && !_token.compare("HTTP/1.0"))
-		throw _expect.parsingErr("HTTP/*");
+		_token.loadNext();
+		if (!_token.compare("HTTP/1.1")) {
+			if (_token.compare("HTTP/1.0"))
+				_request->_http1_1 = false;
+			else
+				return setError(505, "Http vertion not suported");
+		}
 
-	if (RETURN == handleNewline())
+		if (RETURN == handleNewline())
+			return;
+
+		_state = HEADERS;
+	} catch (const runtime_error &err) {
+		LOG_ERROR(err);
+		setError(400, "Invalid http request line");
+	}
+}
+
+void HttpParser::validateHeader() {}
+
+void HttpParser::setError(const uint errorCode, const char *detailMsg) {
+	_status = errorCode;
+	_state = MAKE_ERROR_RESPONSE;
+	LOGNUM_LABELED(Logger::WARNING, detailMsg,
+				   " | Registered html error code: ", errorCode);
+}
+
+void HttpParser::validateKey(StrView Key) {
+	switch (*Key.getStart()) {
+	case ('H'):
+		if (Key.compare("Host") && _request->getHeaderValue(Key))
+			return setError(400, "Request has more than one host!");
 		return;
-
-	_state = HEADERS;
+	}
 }
 
 void HttpParser::parseHeaders() {
@@ -111,6 +146,11 @@ void HttpParser::parseHeaders() {
 		}
 	}
 }
+
+void HttpParser::validateRequest() {
+	if (!_request->getHeaderValue("Host"))
+		return setError(400, "Request has no Host!");
+};
 
 void HttpParser::setBodySize() {
 	const StrView *bodyType = _request->getHeaderValue("Transfer-Encoding");
@@ -166,6 +206,8 @@ Request *HttpParser::parse(const char *inBuff, size_t size) {
 		case (HEADERS):
 			parseHeaders();
 			continue;
+		case (VALIDATE):
+			validateRequest();
 		case (SET_BODY_SIZE):
 			setBodySize();
 			LOGNUM_LABELED(Logger::LOG, "Body mode set to ", bodyLabels[_state],

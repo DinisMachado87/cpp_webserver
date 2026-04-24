@@ -15,10 +15,10 @@ using std::stringstream;
 
 // Public constructors and destructors
 Request::Request() :
-	_method(Location::DEFAULT),
 	_path(_headerBuff),
 	_query(_headerBuff),
 	_fragment(_headerBuff),
+	_method(Location::DEFAULT),
 	_http1_1(true),
 	_body(_headerBuff) {
 	_headerBuff.reserve(MAX_HEADER_SIZE);
@@ -29,9 +29,7 @@ Request::~Request() {}
 // Public Methods
 
 uchar Request::getMethod() const { return _method; };
-
 const char *Request::getMethodStr() const { return g_methods[_method]; };
-
 const StrView &Request::getPath() const { return _path; };
 
 const StrView *Request::getHeaderValue(StrView &key) const {

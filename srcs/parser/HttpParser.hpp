@@ -4,6 +4,7 @@
 #include "Expect.hpp"
 #include "Request.hpp"
 #include "Token.hpp"
+#include <linux/stat.h>
 #include <sys/types.h>
 #include <vector>
 
@@ -12,18 +13,21 @@
 
 class HttpParser {
 private:
-	static const char *const bodyLabels[8];
-
 	enum state {
 		REQUEST_LINE,
 		HEADERS,
+		VALIDATE,
 		BODY,
 		SET_CHUNK_SIZE,
 		SET_BODY_SIZE,
 		CHUNKED_BODY,
 		NO_BODY,
-		RETURN
+		MAKE_ERROR_RESPONSE,
+		RETURN,
+		STATE_SIZE
 	};
+
+	static const char *const bodyLabels[STATE_SIZE];
 
 	Request *_request;
 	ssize_t _charRead;
@@ -39,7 +43,21 @@ private:
 	Expect _expect;
 	char _buff[BUFFER_SIZE];
 
-	// Static initializer
+	uint _status;
+
+	// Methods
+	void setError(const uint errorCode, const char *detailMsg);
+	void validateRequest();
+	void validateKey(StrView Key);
+	void validateHeader();
+	void getChunk();
+	void setBodySize();
+	uchar handleNewline();
+	void receive(int fd);
+	void parseHeaders();
+	void parseRequestLine();
+
+	// Static initializer for Token class
 	static const uchar *delimiters();
 	// Explicit disables
 	HttpParser &operator=(const HttpParser &other);
@@ -57,12 +75,6 @@ public:
 	// Getters and setters
 
 	// Methods
-	void getChunk();
-	void setBodySize();
-	uchar handleNewline();
-	void receive(int fd);
-	void parseHeaders();
-	void parseRequestLine();
 	Request *parse(const char *inBuff, size_t size);
 };
 

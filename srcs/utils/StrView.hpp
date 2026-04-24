@@ -4,6 +4,9 @@
 #include "webServ.hpp"
 #include <ostream>
 #include <string>
+#include <vector>
+
+#define SKIP true
 
 class StrView {
 private:
@@ -11,9 +14,13 @@ private:
 	uint _offset;
 	uint _len;
 
+	// Methods
+	const char *has(const char *color, const bool hasColor) const;
+
 public:
 	// Constructors and destructors
-	StrView(std::string &buffer, const int offset, const uchar len);
+	StrView(std::string &buffer, const uint offset, const uint len);
+	StrView(std::string *buffer, const uint offset, const uint len);
 	StrView(std::string &buffer);
 	StrView(const StrView &other);
 	~StrView();
@@ -35,6 +42,14 @@ public:
 	void setLen(uint len);
 	void setStartAndLen(const char *start, uint len);
 	// Methods
+	std::vector<StrView> splitPath();
+	void info(std::ostream &, const char item = 0,
+			  const char *color = "") const;
+	void nreplace(const uint startOffset, const StrView &toInsert,
+				  const uint len);
+	void replace(const uint startOffset, const StrView &toInsert);
+	size_t find(const char c, const size_t addedOffset = 0) const;
+	size_t findPosInBuffer(const char c, const size_t addedOffset = 0) const;
 	void intoStream(std::ostream &stream) const;
 	void streamStrV(std::stringstream &stream) const;
 	void streamBuffer(std::stringstream &stream) const;

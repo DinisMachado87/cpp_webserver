@@ -20,8 +20,6 @@
 #include <utility>
 #include <vector>
 
-using std::cerr;
-using std::endl;
 using std::map;
 using std::pair;
 using std::runtime_error;
