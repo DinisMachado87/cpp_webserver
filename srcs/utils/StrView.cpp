@@ -142,7 +142,7 @@ void StrView::replace(const uint startOffset, const StrView &toInsert) {
 void StrView::nreplace(const uint startOffset, const StrView &toInsert,
 					   const uint len) {
 	uint insertStart = _offset + startOffset;
-	_rawBuffer->replace(insertStart, len, toInsert.getStart());
+	_rawBuffer->replace(insertStart, len, toInsert.getStr());
 }
 
 const char *StrView::has(const char *color, const bool hasColor) const {
@@ -196,48 +196,140 @@ size_t StrView::find(const char c, const size_t addedOffset) const {
 
 	return posInStrView;
 }
+// /*
+//  * splits a StrView into a StrView vector keeping the separator and spliting
+//  * before it. Ex. /path/to/somewhere = {"/path", "/to", "/somewhere"}
+//  * */
+// vector<StrView> StrView::splitPath() {
+// 	vector<StrView> splitVec;
+//
+// 	uint curOffset = 0;
+// 	size_t nextDivider = find('/', 1);
+//
+// 	StrView cur = *this;
+//
+// 	while (nextDivider != string::npos) {
+// 		if (nextDivider > UINT_MAX)
+// 			throw runtime_error(TRACED("uint overflow"));
+//
+// 		uint segLen = static_cast<uint>(nextDivider) - curOffset;
+// 		cur = StrView(_rawBuffer, _offset + curOffset, segLen);
+//
+// 		const bool onlySlash
+// 			= ((cur.getLen() == 1 && cur.ncompare("/", 1))
+// 			   || (cur.getLen() == 2 && cur.ncompare("/.", 2)));
+//
+// 		if (onlySlash) {
+// 			nextDivider = find('/', curOffset + 1);
+// 			if (string::npos == nextDivider) { // only pushes back '/' if last
+// 				cur.setLen(1);				   // if '/.' truncates to '/'
+// 				splitVec.push_back(cur);
+// 				return splitVec;
+// 			}
+// 			// implicit - doesn't push back '/' and '/.' if not last segment
+// 		} else
+// 			splitVec.push_back(cur);
+//
+// 		curOffset = static_cast<uint>(nextDivider);
+// 		nextDivider = find('/', curOffset + 1);
+// 	}
+//
+// 	if (curOffset < _len) {
+// 		splitVec.push_back(
+// 			StrView(_rawBuffer, _offset + curOffset, _len - curOffset));
+// 	}
+// 	return splitVec;
+// }
 
 /*
- * splits a StrView into a StrView vector keeping the separator and spliting
- * before it. Ex. /path/to/somewhere = {"/path", "/to", "/somewhere"}
- * */
+ * Extracts a segment from startOffset until the next separator.
+ * Returns the position of the separator, or string::npos if end reached.
+ *
+ * Ex. "/path/to" from offset 0 with '/'
+ *     -> segment = "/path", returns 5
+ */
+size_t StrView::segmentUntil(char separator, uint startOffset,
+							 StrView &segment) const {
+	if (startOffset >= _len) {
+		segment = StrView(_rawBuffer, _offset + _len, 0);
+		return string::npos;
+	}
+
+	size_t size_tNextPos = find(separator, startOffset + 1);
+	const bool isLast = (size_tNextPos == string::npos);
+
+	uint newoffset = _offset + startOffset;
+	uint nextPos = static_cast<uint>(size_tNextPos);
+	uint segLen;
+
+	if (!isLast && size_tNextPos > UINT_MAX)
+		throw runtime_error(TRACED("uint overflow"));
+
+	segLen = (isLast) ? _len - startOffset : nextPos - startOffset;
+
+	segment = StrView(_rawBuffer, newoffset, segLen);
+	return size_tNextPos;
+}
+
+StrView StrView::lastSplitBefore(const char c) const {
+	size_t curOffset = 0;
+	while (1) {
+		size_t nextDivider = find(c, curOffset);
+		if (nextDivider > UINT_MAX)
+			throw runtime_error(TRACED("uint overflow"));
+		if (nextDivider == string::npos)
+			return StrView(_rawBuffer, curOffset, nextDivider);
+		curOffset = static_cast<uint>(nextDivider);
+	}
+}
+
+vector<StrView> StrView::splitBefore(const char c) const {
+	vector<StrView> splitVec;
+	StrView cur = *this;
+	uint curOffset = 0;
+
+	while (1) {
+		size_t nextDivider = segmentUntil(c, curOffset, cur);
+		if (nextDivider > UINT_MAX)
+			throw runtime_error(TRACED("uint overflow"));
+
+		splitVec.push_back(cur);
+		if (nextDivider == string::npos)
+			break;
+		curOffset = static_cast<uint>(nextDivider);
+	}
+	return splitVec;
+}
+
 vector<StrView> StrView::splitPath() {
 	vector<StrView> splitVec;
 
 	uint curOffset = 0;
-	size_t nextDivider = find('/', 1);
-
 	StrView cur = *this;
+	size_t nextDivider = segmentUntil('/', curOffset, cur);
 
 	while (nextDivider != string::npos) {
 		if (nextDivider > UINT_MAX)
 			throw runtime_error(TRACED("uint overflow"));
-
-		uint segLen = static_cast<uint>(nextDivider) - curOffset;
-		cur = StrView(_rawBuffer, _offset + curOffset, segLen);
 
 		const bool onlySlash
 			= ((cur.getLen() == 1 && cur.ncompare("/", 1))
 			   || (cur.getLen() == 2 && cur.ncompare("/.", 2)));
 
 		if (onlySlash) {
-			nextDivider = find('/', curOffset + 1);
-			if (string::npos == nextDivider) { // only pushes back '/' if last
-				cur.setLen(1);				   // if '/.' truncates to '/'
+			const bool isLastSegment = _len - 1 == nextDivider;
+			if (isLastSegment) {
+				cur.setLen(1); // if '/.' truncates to '/'
 				splitVec.push_back(cur);
 				return splitVec;
 			}
-			// implicit - doesn't push back '/' and '/.' if not last segment
 		} else
 			splitVec.push_back(cur);
-
 		curOffset = static_cast<uint>(nextDivider);
-		nextDivider = find('/', curOffset + 1);
+		nextDivider = segmentUntil('/', curOffset, cur);
 	}
 
-	if (curOffset < _len) {
-		splitVec.push_back(
-			StrView(_rawBuffer, _offset + curOffset, _len - curOffset));
-	}
+	if (cur.getLen() > 0)
+		splitVec.push_back(cur);
 	return splitVec;
 }

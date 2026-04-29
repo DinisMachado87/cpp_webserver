@@ -12,6 +12,12 @@
 // Allow
 #define ALLOW true
 #define FORBID false
+// default server settings
+#define DEFAULT_ROOT "./defaultLocation/"
+#define DEFAULT_INDEX "index.html"
+#define MB 1048576 // megabyte
+#define CLIENT_MAX_BODY MB
+#define UPLOAD_MAX_BODY 100 * MB
 // EPOLL Macros
 #define MAX_EVENTS 1024
 #define RESPONSES_CUE_SIZE 10

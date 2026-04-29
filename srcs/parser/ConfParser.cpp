@@ -9,7 +9,6 @@
 #include <cctype>
 #include <climits>
 #include <cstddef>
-#include <exception>
 #include <iostream>
 #include <map>
 #include <ostream>
@@ -31,8 +30,7 @@ typedef pair<map<uint, StrView>::iterator, bool> errorVecPair;
 ConfParser::ConfParser(string &configStr, vector<Server *> &servers) :
 	_servers(servers),
 	_newServer(new Server()),
-	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf,
-				 &_newServer->_defaults),
+	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf),
 	_curStrConfig(configStr.c_str()),
 	_vecCursor(0),
 	_token(Token::configDelimiters(), configStr),
@@ -141,8 +139,7 @@ void ConfParser::parseLocation() {
 			_token.consolidateBuffer(_newServer->_strBuf);
 			_newServer->_locations.push_back(_newLocation);
 			_newLocation
-				= Location(_newServer->_strBuf, _newServer->_strvVecBuf,
-						   &_newServer->_defaults);
+				= Location(_newServer->_strBuf, _newServer->_strvVecBuf);
 			return;
 		case Token::WORD:
 			parseLocationParam();
@@ -189,6 +186,7 @@ void ConfParser::nextServer() {
 				parseServerLine();
 			continue;
 		case Token::CLOSEBLOCK:
+			_newServer->_defaultLocation._overrides = _newServer->_defaults;
 			_token.consolidateBuffers(_newServer->_strvVecBuf,
 									  _newServer->_strBuf);
 			_servers.push_back(_newServer);

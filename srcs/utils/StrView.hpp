@@ -42,7 +42,11 @@ public:
 	void setLen(uint len);
 	void setStartAndLen(const char *start, uint len);
 	// Methods
+	size_t segmentUntil(char separator, uint startOffset,
+						StrView &segment) const;
+	std::vector<StrView> splitBefore(const char c) const;
 	std::vector<StrView> splitPath();
+	StrView lastSplitBefore(const char c) const;
 	void info(std::ostream &, const char item = 0,
 			  const char *color = "") const;
 	void nreplace(const uint startOffset, const StrView &toInsert,
