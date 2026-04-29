@@ -20,8 +20,8 @@ SRCS_MAIN		:= main.cpp
 # Sources modules (first word is the directory)
 SRCS_ENGINE		:= engine Engine.cpp Signals.cpp
 SRCS_SERVER		:= server Server.cpp Overrides.cpp Location.cpp
-SRCS_HTTP		:= http Request.cpp Response.cpp
-SRCS_SOCKET		:= sockets ASocket.cpp Listening.cpp Connection.cpp
+SRCS_REQUESTS	:= requests Request.cpp
+SRCS_SOCKET		:= sockets ASocket.cpp Listening.cpp Connection.cpp ACGISocketPair.cpp
 SRCS_PARSER		:= parser Token.cpp Expect.cpp ConfParser.cpp HttpParser.cpp
 SRCS_UTILS		:= utils StrView.cpp Clock.cpp
 SRCS_LOGGER		:= logger Logger.cpp

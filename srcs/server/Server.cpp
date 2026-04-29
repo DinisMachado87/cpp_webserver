@@ -22,8 +22,8 @@ using std::vector;
 
 // Public constructors and destructors
 Server::Server() :
-	_defaults(_strBuf, _strvVecBuf),
-	_defaultLocation(_strBuf, _strvVecBuf) {
+	_defaultLocation(_strBuf, _strvVecBuf),
+	_defaults(_strBuf, _strvVecBuf) {
 	_strBuf.append(DEFAULT_ROOT DEFAULT_INDEX);
 };
 

@@ -23,7 +23,6 @@ struct Listen {
 
 class Server {
 private:
-	Overrides _defaults;
 	Location _defaultLocation;
 
 	// Explicit Disables
@@ -52,6 +51,7 @@ protected:
 	const char *safeStr(const char *str) const;
 
 public:
+	Overrides _defaults;
 	std::vector<Listen> _listen;
 	std::vector<Location> _locations;
 	// Constructors and destructors

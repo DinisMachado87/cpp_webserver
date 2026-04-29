@@ -9,9 +9,8 @@
 // Multical returns
 #define ONGOING false
 #define DONE true
-// Allow
-#define ALLOW true
-#define FORBID false
+// FD
+#define EMPTY -1
 // default server settings
 #define DEFAULT_ROOT "./defaultLocation/"
 #define DEFAULT_INDEX "index.html"
