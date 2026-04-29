@@ -15,12 +15,17 @@
 #include <unistd.h>
 #include <vector>
 
+using std::ostream;
 using std::string;
 using std::stringstream;
+using std::vector;
 
 // Public constructors and destructors
 Server::Server() :
-	_defaults(_strBuf, _strvVecBuf) {};
+	_defaults(_strBuf, _strvVecBuf),
+	_defaultLocation(_strBuf, _strvVecBuf) {
+	_strBuf.append(DEFAULT_ROOT DEFAULT_INDEX);
+};
 
 Server::~Server() {}
 
@@ -48,7 +53,22 @@ string Server::formatIP(in_addr_t addr) const {
 	return std::string(inet_ntoa(in));
 }
 
-void Server::getServerStr(stringstream &stream) const {
+// getters
+const Location &Server::findLocation(const StrView &path) const {
+	const uint pathLen = path.getLen();
+
+	vector<Location>::const_iterator cur = _locations.begin();
+	vector<Location>::const_iterator end = _locations.end();
+	for (; cur != end; ++cur)
+		if (path.ncompare(cur->getPath(), pathLen))
+			return (*cur);
+
+	return _defaultLocation;
+};
+
+// Print, debug and Logging
+
+void Server::getServerStr(ostream &stream) const {
 	if (!LOGGING)
 		return;
 
@@ -67,7 +87,7 @@ void Server::getServerStr(stringstream &stream) const {
 	stream << "-----" << '\n';
 }
 
-void Server::printBufferSizes(stringstream &stream) const {
+void Server::printBufferSizes(ostream &stream) const {
 	stream << "\nBuffer Sizes:" << '\n';
 	stream << "  String buffer: " << _strBuf.size() << "/" << _strBuf.capacity()
 		   << '\n';
@@ -75,4 +95,9 @@ void Server::printBufferSizes(stringstream &stream) const {
 		   << _strvVecBuf.capacity() << '\n';
 	stream << "  Int buffer: " << _intVecBuf.size() << "/"
 		   << _intVecBuf.capacity() << '\n';
+}
+
+std::ostream &operator<<(std::ostream &stream, const Server &server) {
+	server.getServerStr(stream);
+	return (stream);
 }

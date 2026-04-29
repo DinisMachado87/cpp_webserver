@@ -5,7 +5,9 @@
 #include "StrView.hpp"
 #include <cstddef>
 #include <map>
+#include <ostream>
 #include <sstream>
+#include <string>
 
 struct Overrides {
 	// Constructor
@@ -16,6 +18,7 @@ struct Overrides {
 	bool _autoindex;
 	Span<StrView> _index;
 	size_t _clientMaxBody;
+	size_t _UploadMaxBody;
 	// Getters
 	size_t getClientMaxBody() const;
 	const char *findErrorFile(uint errorCode) const;
@@ -24,7 +27,7 @@ struct Overrides {
 	const Span<StrView> &getIndex() const;
 	size_t getErrorMapSize() const;
 	const char *safeStr(const char *str) const;
-	void printOverrides(const char *label, std::stringstream &stream) const;
+	void printOverrides(const char *label, std::ostream &stream) const;
 };
 
 #endif

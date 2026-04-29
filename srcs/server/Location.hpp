@@ -4,13 +4,13 @@
 #include "Overrides.hpp"
 #include "Span.hpp"
 #include "StrView.hpp"
+#include <ostream>
 #include <string>
 #include <vector>
 
 struct Location {
 	// Construnctor
-	Location(std::string &strBuf, std::vector<StrView> &vecBuf,
-			 Overrides *serverDefaults);
+	Location(std::string &strBuf, std::vector<StrView> &vecBuf);
 	// Assignement Operator
 	Location &operator=(const Location &other);
 
@@ -18,8 +18,6 @@ struct Location {
 	static const char *_methodStrs[4];
 	// Substructs
 	Overrides _overrides;
-	// Pointer to server defaults for comparison getters
-	Overrides *_serverDefaults;
 	// Member vars
 	Span<StrView> _cgiExtensions;
 	Span<StrView> _cgiPath;
@@ -46,9 +44,9 @@ struct Location {
 	const Span<StrView> &getCgiPath() const;
 	const Overrides &getOverrides() const;
 	const char *safeStr(const char *str) const;
-	void printLocation(size_t index, std::stringstream &stream) const;
+	void printLocation(size_t index, std::ostream &stream) const;
 	void printStrvSpan(const char *msg, const Span<StrView> &span,
-					   std::stringstream &stream) const;
+					   std::ostream &stream) const;
 };
 
 #endif

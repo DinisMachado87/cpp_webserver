@@ -4,21 +4,24 @@
 #include "webServ.hpp"
 #include <cstddef>
 #include <map>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
 #include <vector>
 
 using std::map;
+using std::ostream;
 using std::string;
 using std::stringstream;
 using std::vector;
 
-Overrides::Overrides(string &strBuf, vector<StrView> &vecBuf) :
-	_root(strBuf),
+Overrides::Overrides(std::string &buffer, std::vector<StrView> &vecBuf) :
+	_root(buffer),
 	_autoindex(false),
 	_index(vecBuf),
-	_clientMaxBody(0) {}
+	_clientMaxBody(CLIENT_MAX_BODY),
+	_UploadMaxBody(UPLOAD_MAX_BODY) {}
 
 const Span<StrView> &Overrides::getIndex() const { return _index; };
 const char *Overrides::getRoot() const { return _root.getStart(); };
@@ -35,7 +38,7 @@ const char *Overrides::safeStr(const char *str) const {
 	return str ? str : "NULL";
 }
 
-void Overrides::printOverrides(const char *label, stringstream &stream) const {
+void Overrides::printOverrides(const char *label, ostream &stream) const {
 	stream << "\n" << label << ":" << '\n';
 	stream << "  Root: " << safeStr(getRoot()) << '\n';
 	stream << "  Autoindex: " << (isAutoindexed() ? "true" : "false") << '\n';

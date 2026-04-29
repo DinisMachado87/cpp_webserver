@@ -91,10 +91,10 @@ DEPS			:= $(OBJS:.o=.d)
 # Define test run command
 define run_tests
 	@if [ -z "$(FILTER)" ]; then \
-		$(1) ./$(NAME); \
+		$(1) ./$(NAME) --gtest_break_on_failure; \
 	else \
 		echo "Running tests matching: $(FILTER)"; \
-		$(1) ./$(NAME) --gtest_filter=$(FILTER); \
+		$(1) ./$(NAME) --gtest_filter=$(FILTER) --gtest_break_on_failure; \
 	fi
 endef
 

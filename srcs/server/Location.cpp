@@ -6,19 +6,20 @@
 #include <bitset>
 #include <cstddef>
 #include <iostream>
+#include <ostream>
 #include <sstream>
 
 using std::bitset;
+using std::ostream;
 using std::size_t;
 using std::stringstream;
 
 const char *Location::_methodStrs[4] = {"DEFAULT", "GET", "POST", "DELETE"};
+
 // Public constructors and destructors
 
-Location::Location(std::string &strBuf, std::vector<StrView> &vecBuf,
-				   Overrides *serverDefaults) :
+Location::Location(std::string &strBuf, std::vector<StrView> &vecBuf) :
 	_overrides(strBuf, vecBuf),
-	_serverDefaults(serverDefaults),
 	_cgiExtensions(vecBuf),
 	_cgiPath(vecBuf),
 	_path(strBuf),
@@ -35,7 +36,6 @@ Location &Location::operator=(const Location &other) {
 		return *this;
 	}
 	_overrides = other._overrides;
-	_serverDefaults = other._serverDefaults;
 	_cgiExtensions = other._cgiExtensions;
 	_cgiPath = other._cgiPath;
 	_path = other._path;
@@ -91,7 +91,7 @@ const char *Location::safeStr(const char *str) const {
 }
 
 void Location::printStrvSpan(const char *msg, const Span<StrView> &span,
-							 stringstream &stream) const {
+							 ostream &stream) const {
 	size_t i = 0;
 	stream << msg;
 	for (i = 0; i < span.len(); i++)
@@ -101,7 +101,7 @@ void Location::printStrvSpan(const char *msg, const Span<StrView> &span,
 	stream << '\n';
 }
 
-void Location::printLocation(size_t index, stringstream &stream) const {
+void Location::printLocation(size_t index, ostream &stream) const {
 	stream << "  [" << index << "] Path: " << safeStr(getPath()) << '\n';
 	stream << "\tReturn Code: " << getReturncode() << '\n';
 	stream << "\tReturn Path: " << safeStr(getReturnPath()) << '\n';
