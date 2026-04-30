@@ -8,11 +8,18 @@ LDFLAGS			:=
 SRC_DIR			:= srcs
 OBJ_DIR			:= obj
 
-# Capture filter argument (e.g., "make debug_test Token")
-FILTER_ARG		:= $(word 2,$(MAKECMDGOALS))
-# Create wildcard pattern if filter argument exists
-ifneq ($(FILTER_ARG),)
-	FILTER		:= *$(FILTER_ARG)*
+# Capture filter arguments (e.g., "make debug_test Token SpecificTest")
+CLASS_ARG		:= $(word 2,$(MAKECMDGOALS))
+TEST_ARG		:= $(word 3,$(MAKECMDGOALS))
+# Create gtest filter pattern based on arguments
+ifdef CLASS_ARG
+  ifdef TEST_ARG
+    FILTER		:= *$(CLASS_ARG)*.$(TEST_ARG)
+  else
+    FILTER		:= $(CLASS_ARG).*
+  endif
+else
+  FILTER		:=
 endif
 
 # Source Main
@@ -41,9 +48,9 @@ endef
 # Build SRCS_CORE and SRCS_TEST_CORE dynamically from groups
 SRCS_CORE		:= $(foreach group,$(SRC_GROUPS),$(call make_paths,$($(group))))
 
-# If FILTER_ARG is provided, only include matching test files
-ifdef FILTER_ARG
-	SRCS_TEST_CORE	:= $(filter %/test_$(FILTER_ARG).cpp,$(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group)))))
+# If CLASS_ARG is provided, only include matching test files
+ifdef CLASS_ARG
+	SRCS_TEST_CORE	:= $(filter %/test_$(CLASS_ARG).cpp,$(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group)))))
 else
 	SRCS_TEST_CORE	:= $(foreach group,$(SRC_GROUPS),$(call make_test_paths,$($(group))))
 endif
@@ -126,9 +133,13 @@ fclean: clean
 
 re: fclean all
 
-# Dummy target only for the filter argument (not for test/debug_test themselves)
-ifneq ($(FILTER_ARG),)
-$(FILTER_ARG):
+# Dummy targets for filter arguments
+ifdef CLASS_ARG
+$(CLASS_ARG):
+	@:
+endif
+ifdef TEST_ARG
+$(TEST_ARG):
 	@:
 endif
 
