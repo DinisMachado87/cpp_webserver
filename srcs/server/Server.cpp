@@ -78,8 +78,9 @@ void Server::getServerStr(ostream &stream) const {
 		stream << "  [" << i << "] Host: " << formatIP(_listen[i].getHost())
 			   << ", Port: " << _listen[i].getPort() << '\n';
 	}
+	stream << '\n';
 
-	_defaults.printOverrides("Defaults", stream);
+	_defaultLocation.printLocation(DEFAULT_LOCATION, stream);
 
 	stream << "\nLocations: " << '\n';
 	for (size_t i = 0; i < _locations.size(); i++)

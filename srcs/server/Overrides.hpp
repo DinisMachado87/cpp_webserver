@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <map>
 #include <ostream>
-#include <sstream>
 #include <string>
 
 struct Overrides {
@@ -14,13 +13,14 @@ struct Overrides {
 	Overrides(std::string &buffer, std::vector<StrView> &vecBuf);
 	// Vars
 	std::map<uint, StrView> _error;
-	StrView _root;
-	bool _autoindex;
 	Span<StrView> _index;
+	StrView _root;
 	size_t _clientMaxBody;
-	size_t _UploadMaxBody;
+	size_t _uploadMaxBody;
+	bool _autoindex;
 	// Getters
 	size_t getClientMaxBody() const;
+	size_t getUploadMaxBody() const;
 	const char *findErrorFile(uint errorCode) const;
 	bool isAutoindexed() const;
 	const char *getRoot() const;
@@ -28,6 +28,7 @@ struct Overrides {
 	size_t getErrorMapSize() const;
 	const char *safeStr(const char *str) const;
 	void printOverrides(const char *label, std::ostream &stream) const;
+	void printMap(const char *label, std::ostream &stream) const;
 };
 
 #endif

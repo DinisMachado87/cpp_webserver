@@ -10,6 +10,10 @@
 
 class StrView {
 private:
+	// Static
+	static std::string _emptyStr;
+
+private:
 	std::string *_rawBuffer;
 	uint _offset;
 	uint _len;
@@ -22,6 +26,7 @@ public:
 	StrView(std::string &buffer, const uint offset, const uint len);
 	StrView(std::string *buffer, const uint offset, const uint len);
 	StrView(std::string &buffer);
+	StrView();
 	StrView(const StrView &other);
 	~StrView();
 	// Operators overload

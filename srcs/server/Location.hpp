@@ -8,9 +8,16 @@
 #include <string>
 #include <vector>
 
+#define DEFAULT_LOCATION -1
+
 struct Location {
+private:
+	static std::string _defaultsBuff;
+
+public:
 	// Construnctor
 	Location(std::string &strBuf, std::vector<StrView> &vecBuf);
+	Location();
 	// Assignement Operator
 	Location &operator=(const Location &other);
 
@@ -44,7 +51,8 @@ struct Location {
 	const Span<StrView> &getCgiPath() const;
 	const Overrides &getOverrides() const;
 	const char *safeStr(const char *str) const;
-	void printLocation(size_t index, std::ostream &stream) const;
+	void printMethods(std::ostream &stream) const;
+	void printLocation(ssize_t index, std::ostream &stream) const;
 	void printStrvSpan(const char *msg, const Span<StrView> &span,
 					   std::ostream &stream) const;
 };

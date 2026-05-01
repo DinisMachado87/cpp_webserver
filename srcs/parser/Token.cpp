@@ -17,6 +17,9 @@
 #include <unistd.h>
 #include <vector>
 
+using std::cout;
+using std::endl;
+using std::map;
 using std::string;
 using std::stringstream;
 using std::strtol;
@@ -268,6 +271,13 @@ void Token::printBuffers(stringstream &stream) {
 	stream << "_tokensInUse: ";
 	for (size_t i = 0; i < _tokensInUse.size(); i++)
 		stream << _tokensInUse[i]->getStr() << "\n";
+}
+
+void Token::consolidateStrVMap(map<uint, StrView> &strVMap, string &newStrBuf) {
+	LOG(Logger::LOG, "Consolidating Map Buffer: ");
+	map<uint, StrView>::iterator cur = strVMap.begin();
+	for (; cur != strVMap.end(); ++cur)
+		cur->second.move(newStrBuf);
 }
 
 void Token::consolidateStrVSpans(vector<StrView> &vecBuf, string &newStrBuf) {

@@ -20,14 +20,16 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
+string StrView::_emptyStr = "";
+
 // Public constructors and destructors
 StrView::StrView(std::string &buffer, const uint offset, const uint len) :
-	_rawBuffer(&buffer),
+	_rawBuffer(&buffer), // takes ref
 	_offset(offset),
 	_len(len) {}
 
 StrView::StrView(std::string *buffer, const uint offset, const uint len) :
-	_rawBuffer(&(*buffer)),
+	_rawBuffer(&(*buffer)), // takes ptr
 	_offset(offset),
 	_len(len) {}
 
@@ -40,6 +42,11 @@ StrView::StrView(const StrView &other) :
 	_rawBuffer(other._rawBuffer),
 	_offset(other._offset),
 	_len(other._len) {}
+
+StrView::StrView() :
+	_rawBuffer(&_emptyStr),
+	_offset(0),
+	_len(1) {}
 
 StrView::~StrView() {}
 
@@ -78,6 +85,7 @@ bool StrView::operator<(const StrView &other) const {
 
 // Getters
 const char *StrView::getStart() const { return _rawBuffer->c_str() + _offset; };
+
 const char *StrView::getEnd() const { return getStart() + (_len - 1); }
 string StrView::getStr() const { return string(getStart(), _len); }
 size_t StrView::getBufferSize() const { return _rawBuffer->length(); }
@@ -196,50 +204,6 @@ size_t StrView::find(const char c, const size_t addedOffset) const {
 
 	return posInStrView;
 }
-// /*
-//  * splits a StrView into a StrView vector keeping the separator and spliting
-//  * before it. Ex. /path/to/somewhere = {"/path", "/to", "/somewhere"}
-//  * */
-// vector<StrView> StrView::splitPath() {
-// 	vector<StrView> splitVec;
-//
-// 	uint curOffset = 0;
-// 	size_t nextDivider = find('/', 1);
-//
-// 	StrView cur = *this;
-//
-// 	while (nextDivider != string::npos) {
-// 		if (nextDivider > UINT_MAX)
-// 			throw runtime_error(TRACED("uint overflow"));
-//
-// 		uint segLen = static_cast<uint>(nextDivider) - curOffset;
-// 		cur = StrView(_rawBuffer, _offset + curOffset, segLen);
-//
-// 		const bool onlySlash
-// 			= ((cur.getLen() == 1 && cur.ncompare("/", 1))
-// 			   || (cur.getLen() == 2 && cur.ncompare("/.", 2)));
-//
-// 		if (onlySlash) {
-// 			nextDivider = find('/', curOffset + 1);
-// 			if (string::npos == nextDivider) { // only pushes back '/' if last
-// 				cur.setLen(1);				   // if '/.' truncates to '/'
-// 				splitVec.push_back(cur);
-// 				return splitVec;
-// 			}
-// 			// implicit - doesn't push back '/' and '/.' if not last segment
-// 		} else
-// 			splitVec.push_back(cur);
-//
-// 		curOffset = static_cast<uint>(nextDivider);
-// 		nextDivider = find('/', curOffset + 1);
-// 	}
-//
-// 	if (curOffset < _len) {
-// 		splitVec.push_back(
-// 			StrView(_rawBuffer, _offset + curOffset, _len - curOffset));
-// 	}
-// 	return splitVec;
-// }
 
 /*
  * Extracts a segment from startOffset until the next separator.

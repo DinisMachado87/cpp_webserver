@@ -125,6 +125,8 @@ void ConfParser::parseLocationParam() {
 }
 
 void ConfParser::parseLocation() {
+	string &newBuff = _newServer->_strBuf;
+
 	_expect.path(&_newLocation._path);
 	_token.loadNextOfType(Token::OPENBLOCK, "{");
 
@@ -136,10 +138,10 @@ void ConfParser::parseLocation() {
 				!= _newLocation._cgiPath.len())
 				throw runtime_error("Error parsing location: diferent number "
 									"of cgi extentions and paths");
-			_token.consolidateBuffer(_newServer->_strBuf);
+			_token.consolidateBuffer(newBuff);
+			_token.consolidateStrVMap(_newLocation._overrides._error, newBuff);
 			_newServer->_locations.push_back(_newLocation);
-			_newLocation
-				= Location(_newServer->_strBuf, _newServer->_strvVecBuf);
+			_newLocation = Location(newBuff, _newServer->_strvVecBuf);
 			return;
 		case Token::WORD:
 			parseLocationParam();

@@ -4,6 +4,7 @@
 #include "StrView.hpp"
 #include "webServ.hpp"
 #include <cstddef>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <sys/types.h>
@@ -53,6 +54,8 @@ public:
 	static const uchar *configDelimiters();
 
 	// Methods
+	void consolidateStrVMap(std::map<uint, StrView> &strVMap,
+							std::string &newStrBuf);
 	void printBuffers(std::stringstream &stream);
 	void resetSpanConsolidationIndex();
 	void consolidateBuffers(std::vector<StrView> &vecBuf,

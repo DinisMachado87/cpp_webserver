@@ -27,7 +27,6 @@ private:
 
 	// Explicit Disables
 	Server &operator=(const Server &other);
-
 	// Implemented for friend classes
 	Server(const Server &other);
 
