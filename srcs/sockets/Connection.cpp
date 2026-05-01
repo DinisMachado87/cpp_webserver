@@ -25,6 +25,7 @@ using std::string;
 Connection::Connection(const int fd, const Server &server,
 					   struct sockaddr_in serverAddr) :
 	ASocket(fd, server, serverAddr),
+	_http(server),
 	_responseReceivingBody(NULL),
 	_cur(0),
 	_back(0),

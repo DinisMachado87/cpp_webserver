@@ -1,16 +1,22 @@
+#include "ConfParser.hpp"
 #include "HttpParser.hpp"
 #include "Location.hpp"
 #include "Logger.hpp"
 #include "Request.hpp"
+#include "Server.hpp"
 #include "StrView.hpp"
 #include "webServ.hpp"
 #include <cstddef>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <sys/types.h>
+#include <vector>
 
 using std::endl;
+using std::runtime_error;
 using std::string;
 
 // CONSTANTS
@@ -64,31 +70,66 @@ static const char *CHUNKED_BODY_SAMPLE = "5\r\n"
 										 "0\r\n"
 										 "\r\n";
 
+string miniconfig = "server {\n"
+					"listen 127.0.0.1:8080;\n"
+					"location / {\n"
+					"allowed_methods GET POST DELETE;\n"
+					"root /tmp/test;\n"
+					"}\n"
+					"}\n";
+
 // TEST CLASS
 
 class HttpParserTest : public ::testing::Test {
 private:
 	string _requestStr;
 	string _body;
+
+	ConfParser _confParser;
+	std::vector<Server *> _servers;
 	Request *_request;
-	HttpParser _parser;
+	HttpParser *_parser;
 
 protected:
+	void SetUp() {
+		try {
+			_confParser.createServers();
+			if (_servers.empty() || !_servers[0])
+				throw runtime_error(TRACED("Failed to create Servers"));
+			std::cout << *_servers[0] << '\n' << endl;
+			_parser = new HttpParser(*_servers[0]);
+		} catch (runtime_error err) {
+			LOG_ERROR(err);
+			throw;
+		}
+	}
+
 	void TearDown() {
 		if (_request)
 			delete _request;
 		_request = NULL;
+
+		if (_parser)
+			delete _parser;
+		_parser = NULL;
+
+		if (!_servers.empty())
+			_servers.clear();
 	}
 
 public:
 	HttpParserTest() :
-		_request(NULL) {}
+		_confParser(miniconfig, _servers),
+		_request(NULL),
+		_parser(NULL) {}
 
 	// Test helper components
 	void testRequestLine(const s_requestLine &requestLine) {
 		_requestStr = requestLine._requestLine;
+		_requestStr.append("Host: localhost\r\n");
 		_requestStr.append("\r\n");
-		_request = _parser.parse(_requestStr.c_str(), _requestStr.length());
+		std::cout << "REQUEST LINE // " << _requestStr << endl;
+		_request = _parser->parse(_requestStr.c_str(), _requestStr.length());
 		EXPECT_TRUE(_request);
 		EXPECT_EQ(_request->getMethod(), requestLine._method);
 		EXPECT_EQ(_request->getPath(), requestLine._URI);
@@ -110,7 +151,7 @@ public:
 	}
 
 	void testBody(size_t expBodySize) {
-		EXPECT_TRUE(_parser._nextBodySection == expBodySize);
+		EXPECT_TRUE(_parser->_nextBodySection == expBodySize);
 		const StrView &body = _request->getBody();
 		EXPECT_TRUE(body.ncompare(_body.c_str(), _body.length()))
 			<< body.getStr() << "\r\n"
@@ -145,12 +186,12 @@ public:
 
 	// Partial Parse tests
 	void ParseHeaders() {
-		_parser._state = HttpParser::HEADERS;
-		_request = _parser.parse(_requestStr.c_str(), _requestStr.length());
+		_parser->_state = HttpParser::HEADERS;
+		_request = _parser->parse(_requestStr.c_str(), _requestStr.length());
 	}
 
 	void parseRequest() {
-		_request = _parser.parse(_requestStr.c_str(), _requestStr.length());
+		_request = _parser->parse(_requestStr.c_str(), _requestStr.length());
 	}
 
 	void buildRequest(const s_requestLine &requestLine,

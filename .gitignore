@@ -3,3 +3,5 @@ Session.vim
 .cache
 compile_commands.json
 .clang-format
+http_notes.md
+serverLog.txt

@@ -1,6 +1,7 @@
 #include "Expect.hpp"
 #include "Colors.hpp"
 #include "Logger.hpp"
+#include "Request.hpp"
 #include "Server.hpp"
 #include "StrView.hpp"
 #include "Token.hpp"
@@ -22,6 +23,8 @@
 #include <utility>
 #include <vector>
 
+using std::cout;
+using std::endl;
 using std::map;
 using std::pair;
 using std::runtime_error;
@@ -149,49 +152,33 @@ void Expect::printPathSegs(vector<StrView> &segments, uint i, uint writeIdx,
 		const char *color = (wi ? RED : cur ? GREEN : "");
 		const char *reset = ((wi || cur) ? RESET : "");
 
-		std::cout << color << ((wi || cur) ? "[" : " ") << reset;
-		std::cout << segments[j];
-		std::cout << color << ((wi || cur) ? "]" : " ") << reset;
+		cout << color << ((wi || cur) ? "[" : " ") << reset;
+		cout << segments[j];
+		cout << color << ((wi || cur) ? "]" : " ") << reset;
 
-		((j + 1) == len ? std::cout << YELLOW << " | " << RESET
-						: std::cout << "   ");
+		((j + 1) == len ? cout << YELLOW << " | " << RESET : cout << "   ");
 	}
-	std::cout << " |len: " << len << std::endl;
+	cout << " |len: " << len << endl;
 }
 
-void Expect::consolidatedPath(StrView *destPath) {
-	path(destPath);
-	if (!destPath || destPath->getLen() <= 1)
-		return;
-
-	vector<StrView> segments = destPath->splitPath();
-	if (segments.empty())
-		return;
-
-	size_t writeIdx = 0;
+void Expect::consolidatePath(vector<StrView> &segments, size_t &writeIdx,
+							 bool &hasChanges) {
 	DEBUG(uint deletedSegs = 0;);
-
-	bool hasChanges = false;
 	for (size_t i = 0; i < segments.size(); i++) {
-		StrView seg = segments[i];
-
 		DEBUG(std::cout << "\nbefore: ";);
 		DEBUG(printPathSegs(segments, i, writeIdx, deletedSegs););
 
+		StrView seg = segments[i];
 		bool isLastSegment = (i == (segments.size() - 1));
 		if (isLastSegment && seg.getLen() == 2 && seg.ncompare("/.", 2))
 			DEBUG(std::cout << "SKIP - not advance writeidx for next loop\n";);
-
 		else if (seg.getLen() == 3 && seg.ncompare("/..", 3)) {
-			// Parent directory - go back
 			if (writeIdx <= 0)
 				throw runtime_error("Path contains negative level");
 			writeIdx--;
-
 			DEBUG(deletedSegs++;);
 			DEBUG(std::cout << "GO BACK: " << '\n';);
 		} else {
-			// Normal path - keep it
 			if (writeIdx != i)
 				segments[writeIdx].setStartAndLen(segments[i].getStart(),
 												  segments[i].getLen());
@@ -201,33 +188,52 @@ void Expect::consolidatedPath(StrView *destPath) {
 		}
 		if (writeIdx != i)
 			hasChanges = true;
-
-		//
 		DEBUG(std::cout << "after:  ";);
 		DEBUG(printPathSegs(segments, i, writeIdx, deletedSegs););
 	}
+}
 
-	if (writeIdx == 0) {
+void Expect::consolidatedPath(StrView *destPath, Request *request) {
+	path(destPath);
+	if (destPath->getLen() == 2 && destPath->ncompare("/.", 2))
 		destPath->setLen(1);
-		DEBUG(std::cout << '\n' << *destPath << " | after" << std::endl;);
+	if (!destPath || destPath->getLen() <= 1)
 		return;
+
+	vector<StrView> segments = destPath->splitPath();
+
+	size_t writeIdx = 0;
+	bool hasChanges = false;
+	consolidatePath(segments, writeIdx, hasChanges);
+
+	DEBUG(cout << *destPath << " | before" << '\n';);
+	if (writeIdx == 0)
+		destPath->setLen(1);
+
+	if (request) {
+		if ('/' == *segments.back().getEnd())
+			request->_isDir = true;
+		else {
+			StrView sufix = segments.back().lastSplitBefore('.');
+			if ('.' == *sufix.getStart()) {
+				request->_isCgi = true;
+				request->_cgiExtension = sufix;
+			}
+		}
 	}
 
-	if (!hasChanges)
-		return;
+	if (hasChanges) {
+		string newPathStr;
+		newPathStr.reserve(destPath->getLen());
 
-	std::string newPathStr;
-	newPathStr.reserve(destPath->getLen());
+		for (size_t i = 0; i < writeIdx; i++)
+			newPathStr.append(segments[i].getStart(), segments[i].getLen());
 
-	for (size_t i = 0; i < writeIdx; i++)
-		newPathStr.append(segments[i].getStart(), segments[i].getLen());
-
-	destPath->nreplace(0, StrView(newPathStr), newPathStr.size());
-	destPath->setLen(newPathStr.size());
-
-	DEBUG(std::cout << "\nCOPYING:\n" << newPathStr << " | temp str" << '\n';);
-	DEBUG(std::cout << *destPath << " | before" << '\n';);
-	DEBUG(std::cout << *destPath << " | after" << std::endl;);
+		DEBUG(cout << "\nCOPYING:\n" << newPathStr << " | temp str" << '\n';);
+		destPath->nreplace(0, StrView(newPathStr), newPathStr.size());
+		destPath->setLen(newPathStr.size());
+	}
+	DEBUG(cout << *destPath << " | after" << endl;);
 }
 
 size_t Expect::applySizeUnit(size_t value, char unit) {

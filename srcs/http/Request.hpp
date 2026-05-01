@@ -15,14 +15,19 @@ private:
 	StrView _query;
 	StrView _fragment;
 
+	StrView _cgiExtension;
+
 	uchar _method;
 	bool _http1_1;
+	bool _isDir;
+	bool _isCgi;
 
 	std::map<StrView, StrView> _headers;
 
 	StrView _body;
 
 	friend class HttpParser;
+	friend class Expect;
 
 public:
 	// Constructors and destructors

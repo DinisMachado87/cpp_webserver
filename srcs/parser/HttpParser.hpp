@@ -3,6 +3,7 @@
 
 #include "Expect.hpp"
 #include "Request.hpp"
+#include "Response.hpp"
 #include "Token.hpp"
 #include <linux/stat.h>
 #include <sys/types.h>
@@ -10,6 +11,8 @@
 
 #define BUFFER_SIZE 1024
 #define NEEDS_MORE_INPUT true
+
+class Server;
 
 class HttpParser {
 private:
@@ -29,7 +32,10 @@ private:
 
 	static const char *const bodyLabels[STATE_SIZE];
 
+	const Server &_server;
 	Request *_request;
+	Response *_response;
+
 	ssize_t _charRead;
 	ssize_t _headerLen;
 	uint _state;
@@ -46,6 +52,7 @@ private:
 	uint _status;
 
 	// Methods
+	void validateRequestLine();
 	void setError(const uint errorCode, const char *detailMsg);
 	void validateRequest();
 	void validateKey(StrView Key);
@@ -60,6 +67,7 @@ private:
 	// Static initializer for Token class
 	static const uchar *delimiters();
 	// Explicit disables
+	HttpParser();
 	HttpParser &operator=(const HttpParser &other);
 	HttpParser(const HttpParser &other);
 
@@ -67,7 +75,7 @@ private:
 
 public:
 	// Constructors and destructors
-	HttpParser();
+	HttpParser(const Server &server);
 	~HttpParser();
 
 	// Operators overload

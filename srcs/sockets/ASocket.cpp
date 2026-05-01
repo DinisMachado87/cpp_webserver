@@ -19,6 +19,7 @@ ASocket::ASocket(const int fd, const Server &server,
 	_fd(fd),
 	_server(server),
 	_serverAddr(serverAddr),
+	_parser(server),
 	_events(0) {}
 
 ASocket::~ASocket() {

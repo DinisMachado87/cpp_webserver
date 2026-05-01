@@ -18,8 +18,11 @@ Request::Request() :
 	_path(_headerBuff),
 	_query(_headerBuff),
 	_fragment(_headerBuff),
+	_cgiExtension(_headerBuff),
 	_method(Location::DEFAULT),
 	_http1_1(true),
+	_isDir(false),
+	_isCgi(false),
 	_body(_headerBuff) {
 	_headerBuff.reserve(MAX_HEADER_SIZE);
 }

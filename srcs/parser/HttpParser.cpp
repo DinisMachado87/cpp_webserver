@@ -16,7 +16,6 @@
 using std::make_pair;
 using std::runtime_error;
 using std::string;
-using std::vector;
 
 const char *g_methods[] = {"DEFAULT", "GET", "POST", "DELETE"};
 
@@ -36,7 +35,8 @@ const uchar *HttpParser::delimiters() {
 }
 
 // Public constructors and destructors
-HttpParser::HttpParser() :
+HttpParser::HttpParser(const Server &server) :
+	_server(server),
 	_request(new Request),
 	_charRead(0),
 	_headerLen(0),
@@ -86,7 +86,7 @@ void HttpParser::parseRequestLine() {
 			return setError(400, "Http method non existent. ");
 		_request->_method = method;
 
-		_expect.path(&_request->_path);
+		_expect.consolidatedPath(&_request->_path);
 
 		_token.loadNext();
 		if (!_token.compare("HTTP/1.1")) {
@@ -104,6 +104,13 @@ void HttpParser::parseRequestLine() {
 		LOG_ERROR(err);
 		setError(400, "Invalid http request line");
 	}
+}
+
+void HttpParser::validateRequestLine() {
+	const Location &location = _server.findLocation(_request->getPath());
+
+	if (!location.isAllowedMethod(_request->getMethod()))
+		setError(405, "Method not allowed");
 }
 
 void HttpParser::validateHeader() {}

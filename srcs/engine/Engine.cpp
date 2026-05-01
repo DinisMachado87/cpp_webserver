@@ -169,18 +169,15 @@ void Engine::pollLoop() {
 										+ string(strerror(errno)));
 				if (ev & EPOLLHUP)
 					throw ClientClosed();
-				if (ev & EPOLLIN) {
+				if (ev & EPOLLIN)
 					while (Connection *connection = socket->handleIn())
 						if (connection)
 							addSocket(connection);
-				}
 				if (ev & EPOLLOUT) {
 					LOG(Logger::LOG, "Received EPOLLOUT");
 					socket->handleOut();
 				}
-
 				updateFlags(socket);
-
 			} catch (const ClientClosed &ex) {
 				LOGSOCK(Logger::LOG, ex.what(), socket->getFd());
 				deleteSocket(socket);
