@@ -30,7 +30,7 @@ typedef pair<map<uint, StrView>::iterator, bool> errorVecPair;
 ConfParser::ConfParser(string &configStr, vector<Server *> &servers) :
 	_servers(servers),
 	_newServer(new Server()),
-	_newLocation(_newServer->_strBuf, _newServer->_strvVecBuf),
+	_newLocation(_newServer->_strvVecBuf),
 	_curStrConfig(configStr.c_str()),
 	_vecCursor(0),
 	_token(Token::configDelimiters(), configStr),
@@ -141,7 +141,7 @@ void ConfParser::parseLocation() {
 			_token.consolidateBuffer(newBuff);
 			_token.consolidateStrVMap(_newLocation._overrides._error, newBuff);
 			_newServer->_locations.push_back(_newLocation);
-			_newLocation = Location(newBuff, _newServer->_strvVecBuf);
+			_newLocation = Location(_newServer->_strvVecBuf);
 			return;
 		case Token::WORD:
 			parseLocationParam();

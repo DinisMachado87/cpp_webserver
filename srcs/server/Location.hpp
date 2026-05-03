@@ -16,7 +16,7 @@ private:
 
 public:
 	// Construnctor
-	Location(std::string &strBuf, std::vector<StrView> &vecBuf);
+	Location(std::vector<StrView> &vecBuf);
 	Location();
 	// Assignement Operator
 	Location &operator=(const Location &other);

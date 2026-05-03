@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "Request.hpp"
 #include "webServ.hpp"
 
 // Public constructors and destructors

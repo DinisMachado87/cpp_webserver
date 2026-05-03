@@ -9,9 +9,7 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
-#include <iostream>
 #include <netinet/in.h>
-#include <ostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -19,8 +17,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-using std::cout;
-using std::endl;
 using std::runtime_error;
 using std::string;
 using std::stringstream;

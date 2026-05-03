@@ -1,8 +1,9 @@
 #ifndef RESPONSE_HPP
 #define RESPONSE_HPP
 
-#include "Location.hpp"
-#include "Request.hpp"
+struct Location;
+class Request;
+
 class Response {
 private:
 	// Explicit disables

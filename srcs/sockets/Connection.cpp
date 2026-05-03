@@ -42,12 +42,16 @@ Connection::~Connection() {
 	}
 }
 
-ssize_t Connection::recvToBuffer(char *buffer) {
+size_t Connection::recvToBuffer(char *buffer) {
 	ssize_t bytesRead = recv(_fd, buffer, RECV_SIZE, 0);
 
-	if (bytesRead <= ERR && !(errno == EAGAIN || errno == EWOULDBLOCK))
-		throw(runtime_error(TRACED("recv() failure reading from client")
-							+ string(strerror(errno))));
+	if (bytesRead <= ERR) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0;
+		else
+			throw(runtime_error(TRACED("recv() failure reading from client")
+								+ string(strerror(errno))));
+	}
 	if (bytesRead == 0)
 		throw ClientClosed();
 
@@ -57,14 +61,14 @@ ssize_t Connection::recvToBuffer(char *buffer) {
 }
 
 // Public Methods
-Connection *Connection::handleIn() {
+ASocket *Connection::handleIn() {
 	LOGSOCK(Logger::LOG, "Connection Handel in", _fd);
 
 	Request *request = NULL;
-	char buffer[RECV_SIZE + 1];
-	ssize_t bytesRead = 0;
 
-	if (!(bytesRead = recvToBuffer(buffer)))
+	char buffer[RECV_SIZE + 1];
+	size_t bytesRead = recvToBuffer(buffer);
+	if (!bytesRead)
 		return NULL;
 
 	try {

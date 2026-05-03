@@ -32,12 +32,12 @@ public:
 	// Constructors and destructors
 	~Connection();
 	// I/O
-	Connection *handleIn();
+	ASocket *handleIn();
 	void handleOut();
 	// Event tracking
 	uint32_t getEventsNextLoop();
 	bool isFull() const;
-	ssize_t recvToBuffer(char *buffer);
+	size_t recvToBuffer(char *buffer);
 };
 
 #endif

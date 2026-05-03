@@ -20,7 +20,7 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
-const string StrView::_empty = "";
+string StrView::_empty = "";
 
 // Public constructors and destructors
 StrView::StrView(std::string &buffer, const uint offset, const uint len) :
@@ -33,6 +33,11 @@ StrView::StrView(std::string *buffer, const uint offset, const uint len) :
 	_offset(offset),
 	_len(len) {}
 
+StrView::StrView() :
+	_rawBuffer(&_empty),
+	_offset(0),
+	_len(0) {}
+
 StrView::StrView(std::string &buffer) :
 	_rawBuffer(&buffer),
 	_offset(0),
@@ -43,10 +48,7 @@ StrView::StrView(const StrView &other) :
 	_offset(other._offset),
 	_len(other._len) {}
 
-StrView::~StrView() :
-	_rawBuffer(other._rawBuffer),
-	_offset(other._offset),
-	_len(other._len) {}
+StrView::~StrView() {}
 
 // Operators overload
 StrView &StrView::operator=(const StrView &other) {

@@ -6,11 +6,10 @@
 #include <cstddef>
 #include <map>
 #include <ostream>
-#include <string>
 
 struct Overrides {
 	// Constructor
-	Overrides(std::string &buffer, std::vector<StrView> &vecBuf);
+	Overrides(std::vector<StrView> &vecBuf);
 	// Vars
 	std::map<uint, StrView> _error;
 	Span<StrView> _index;

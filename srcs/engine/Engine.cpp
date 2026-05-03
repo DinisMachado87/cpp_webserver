@@ -153,6 +153,7 @@ void Engine::pollLoop() {
 	while (!g_shutdown) {
 		nFds = -1;
 		usleep(100000);
+		LOG(Logger::LOG, "New Loop");
 		nFds = epoll_wait(_fdEpoll, events, MAX_EVENTS, TIMEOUT);
 		if (ERR == nFds) {
 			if (errno == EINTR)
@@ -170,7 +171,7 @@ void Engine::pollLoop() {
 				if (ev & EPOLLHUP)
 					throw ClientClosed();
 				if (ev & EPOLLIN)
-					while (Connection *connection = socket->handleIn())
+					while (ASocket *connection = socket->handleIn())
 						if (connection)
 							addSocket(connection);
 				if (ev & EPOLLOUT) {

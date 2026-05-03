@@ -40,8 +40,6 @@ protected:
 	std::vector<uint> _intVecBuf;
 	// Private methods
 	std::string formatIP(in_addr_t addr) const;
-	size_t getListenLen();
-	size_t getLoncationsLen();
 	void printBufferSizes(std::ostream &stream) const;
 	void printLocation(const Location &loc, size_t index,
 					   std::stringstream &stream) const;
@@ -60,6 +58,8 @@ public:
 	// Methods
 	void reserve(uint sizeStrBuf, uint sizeStrvVecBuf, uint sizeintVecBuf);
 	// Getters Server Vars
+	size_t getListenLen();
+	size_t getLoncationsLen();
 	const Location &findLocation(const StrView &path) const;
 	void getServerStr(std::ostream &stream) const;
 };

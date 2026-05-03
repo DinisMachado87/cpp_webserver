@@ -18,16 +18,13 @@ const char *Location::_methodStrs[4] = {"DEFAULT", "GET", "POST", "DELETE"};
 
 // Public constructors and destructors
 
-Location::Location(std::string &strBuf, std::vector<StrView> &vecBuf) :
-	_overrides(strBuf, vecBuf),
+Location::Location(std::vector<StrView> &vecBuf) :
+	_overrides(vecBuf),
 	_cgiExtensions(vecBuf),
 	_cgiPath(vecBuf),
-	_path(strBuf),
-	_returnPath(strBuf),
-	_uploadPath(strBuf),
 	_returnCode(0),
 	_uploadEnable(false),
-	_allowedMethods((1 << GET) | (1 << POST) | (1 << DELETE)) {}
+	_allowedMethods(DEFAULT) {}
 
 Location &Location::operator=(const Location &other) {
 	if (this == &other) {
@@ -99,17 +96,7 @@ void Location::printStrvSpan(const char *msg, const Span<StrView> &span,
 	stream << '\n';
 }
 
-void Location::printLocation(size_t index, ostream &stream) const {
-	stream << "  [" << index << "] Path: " << safeStr(getPath()) << '\n';
-	stream << "\tReturn Code: " << getReturncode() << '\n';
-	stream << "\tReturn Path: " << safeStr(getReturnPath()) << '\n';
-	stream << "\tUpload Enabled: " << (getUploadEnabled() ? "true" : "false")
-		   << '\n';
-	stream << "\tUpload Path: " << safeStr(getUploadPath()) << '\n';
-
-	printStrvSpan("\tCGI Extensions: ", _cgiExtensions, stream);
-	printStrvSpan("\tCGI Paths: ", _cgiPath, stream);
-
+void Location::printMethods(ostream &stream) const {
 	bool none = true;
 	stream << "\tAllowed Methods (bitset: " << bitset<8>(_allowedMethods)
 		   << "): ";
@@ -121,4 +108,24 @@ void Location::printLocation(size_t index, ostream &stream) const {
 	if (none)
 		stream << "NONE";
 	stream << '\n';
+}
+
+void Location::printLocation(ssize_t index, ostream &stream) const {
+	if (DEFAULT_LOCATION == index)
+		stream << "Deafault Location:\n";
+	else
+		stream << "  [" << index << "] Path: " << safeStr(getPath()) << '\n';
+
+	stream << "\tReturn Code: " << getReturncode() << '\n';
+	stream << "\tReturn Path: " << getReturnPath() << '\n';
+	stream << "\tUpload Enabled: " << (getUploadEnabled() ? "true" : "false")
+		   << '\n';
+	stream << "\tUpload Path: " << safeStr(getUploadPath()) << '\n';
+
+	printStrvSpan("\tCGI Extensions: ", _cgiExtensions, stream);
+	printStrvSpan("\tCGI Paths: ", _cgiPath, stream);
+
+	printMethods(stream);
+
+	_overrides.printOverrides("\tOverrrides", stream);
 }
